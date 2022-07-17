@@ -1,0 +1,41 @@
+{
+	"name": "@firm/lexer",
+	"description": "Lexer for the firm programming language",
+	"version": "0.1.0",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		"import": "./dist/index.mjs",
+		"require": "./dist/index.js",
+		"types": "./dist/index.d.ts"
+	},
+	"directories": {
+		"lib": "src"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup && tsc",
+		"test": "vitest run",
+		"lint": "eslint src --ext .ts",
+		"prepublishOnly": "yarn build && yarn lint && yarn test"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chatsift/utilities.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chatsift/utilities/issues"
+	},
+	"homepage": "https://github.com/chatsift/utilities",
+	"devDependencies": {
+		"@types/node": "^16.11.45",
+		"tsup": "^6.1.3",
+		"typescript": "^4.7.4",
+		"vitest": "^0.17.1"
+	},
+	"dependencies": {
+		"tslib": "^2.4.0"
+	}
+}
