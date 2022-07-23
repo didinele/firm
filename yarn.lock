@@ -265,6 +265,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@firm/lexer@workspace:packages/lexer"
   dependencies:
+    "@sapphire/result": ^2.0.1
     "@types/node": ^16.11.45
     tslib: ^2.4.0
     tsup: ^6.1.3
@@ -390,6 +391,13 @@ __metadata:
   version: 3.16.0-49.da41d2bb3406da22087b849f0e911199ba4fbf11
   resolution: "@prisma/engines@npm:3.16.0-49.da41d2bb3406da22087b849f0e911199ba4fbf11"
   checksum: 0738eb730da2a4c6d77fb9f104a951731a975dd5ca7317637081c38f377c65b39f0a0b8db23ffe40390279f39aca2cde467aba14fb1acd6398ff01dc256f0033
+  languageName: node
+  linkType: hard
+
+"@sapphire/result@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@sapphire/result@npm:2.0.1"
+  checksum: 878790efbd4a3127513f6ddb1ffdf287503a88595915a22550ac3583e4dde229dd0d7d49612d397a49f12a0c2323afc43ab54ceb818d969f8d0571d71336287a
   languageName: node
   linkType: hard
 
