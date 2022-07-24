@@ -273,7 +273,119 @@ export class Lexer {
 			this.advance();
 		}
 
-		yield this.makeToken(TokenType.Identifier);
+		const lexeme = this.currentLexeme;
+		switch (lexeme) {
+			// true/false literals
+			case 'true': {
+				yield this.makeToken(TokenType.True);
+				break;
+			}
+
+			case 'false': {
+				yield this.makeToken(TokenType.False);
+				break;
+			}
+
+			// Keywords
+			case 'if': {
+				yield this.makeToken(TokenType.If);
+				break;
+			}
+
+			case 'else': {
+				yield this.makeToken(TokenType.Else);
+				break;
+			}
+
+			case 'for': {
+				yield this.makeToken(TokenType.For);
+				break;
+			}
+
+			case 'while': {
+				yield this.makeToken(TokenType.While);
+				break;
+			}
+
+			case 'break': {
+				yield this.makeToken(TokenType.Break);
+				break;
+			}
+
+			case 'continue': {
+				yield this.makeToken(TokenType.Continue);
+				break;
+			}
+
+			case 'return': {
+				yield this.makeToken(TokenType.Return);
+				break;
+			}
+
+			case 'struct': {
+				yield this.makeToken(TokenType.Struct);
+				break;
+			}
+
+			case 'enum': {
+				yield this.makeToken(TokenType.Enum);
+				break;
+			}
+
+			case 'fn': {
+				yield this.makeToken(TokenType.Fn);
+				break;
+			}
+
+			case 'trait': {
+				yield this.makeToken(TokenType.Trait);
+				break;
+			}
+
+			case 'type': {
+				yield this.makeToken(TokenType.Type);
+				break;
+			}
+
+			case 'let': {
+				yield this.makeToken(TokenType.Let);
+				break;
+			}
+
+			case 'mut': {
+				yield this.makeToken(TokenType.Mut);
+				break;
+			}
+
+			case 'uniform': {
+				yield this.makeToken(TokenType.Uniform);
+				break;
+			}
+
+			case 'pure': {
+				yield this.makeToken(TokenType.Pure);
+				break;
+			}
+
+			case 'namespace': {
+				yield this.makeToken(TokenType.Namespace);
+				break;
+			}
+
+			case 'use': {
+				yield this.makeToken(TokenType.Use);
+				break;
+			}
+
+			case 'as': {
+				yield this.makeToken(TokenType.As);
+				break;
+			}
+
+			default: {
+				yield this.makeToken(TokenType.Identifier);
+			}
+		}
 	}
 
 	/**
@@ -425,7 +537,7 @@ export class Lexer {
 						this.advance();
 						yield this.makeToken(TokenType.NotEquals);
 					} else {
-						yield this.makeToken(TokenType.Not);
+						yield this.makeToken(TokenType.Bang);
 					}
 
 					break;

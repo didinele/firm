@@ -23,7 +23,7 @@ export enum TokenType {
 	Equals,
 	LessThan,
 	GreaterThan,
-	Not,
+	Bang,
 
 	// 2 character tokens
 	ColonColon,
@@ -43,6 +43,35 @@ export enum TokenType {
 	// Literals
 	String,
 	Number,
+	True,
+	False,
+
+	// Keywords
+	If,
+	Else,
+
+	For,
+	While,
+	Break,
+	Continue,
+
+	Return,
+
+	Struct,
+	Enum,
+	Fn,
+	Trait,
+	Type,
+
+	Let,
+	Mut,
+
+	Uniform,
+	Pure,
+
+	Namespace,
+	Use,
+	As,
 
 	// Internal/for parsing stage
 	Identifier,

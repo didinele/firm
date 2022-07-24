@@ -45,7 +45,7 @@ test('it can lex single characters', () => {
 		TokenType.Equals,
 		TokenType.LessThan,
 		TokenType.GreaterThan,
-		TokenType.Not,
+		TokenType.Bang,
 	] as const;
 
 	assertMatchingTypes<typeof characters['length'], typeof tokens['length']>();
@@ -256,8 +256,7 @@ test('it can lex identifiers', () => {
 	expect(result.tokens).toStrictEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
-				type: TokenType.Identifier,
-				lexeme: 'let',
+				type: TokenType.Let,
 			}),
 			expect.objectContaining({
 				type: TokenType.Identifier,
@@ -309,8 +308,7 @@ test('it can lex a tiny example program', () => {
 	expect(result.tokens).toStrictEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
-				type: TokenType.Identifier,
-				lexeme: 'fn',
+				type: TokenType.Fn,
 			}),
 			expect.objectContaining({
 				type: TokenType.Identifier,
@@ -326,8 +324,7 @@ test('it can lex a tiny example program', () => {
 				type: TokenType.LeftBrace,
 			}),
 			expect.objectContaining({
-				type: TokenType.Identifier,
-				lexeme: 'let',
+				type: TokenType.Let,
 			}),
 			expect.objectContaining({
 				type: TokenType.Identifier,
@@ -344,8 +341,7 @@ test('it can lex a tiny example program', () => {
 				type: TokenType.Semicolon,
 			}),
 			expect.objectContaining({
-				type: TokenType.Identifier,
-				lexeme: 'let',
+				type: TokenType.Let,
 			}),
 			expect.objectContaining({
 				type: TokenType.Identifier,
@@ -362,8 +358,7 @@ test('it can lex a tiny example program', () => {
 				type: TokenType.Semicolon,
 			}),
 			expect.objectContaining({
-				type: TokenType.Identifier,
-				lexeme: 'let',
+				type: TokenType.Let,
 			}),
 			expect.objectContaining({
 				type: TokenType.Identifier,
