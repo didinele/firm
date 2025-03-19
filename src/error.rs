@@ -1,7 +1,7 @@
+use std::sync::RwLock;
+
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
-
-pub static COMPILER_ERRORS: Vec<CompilerError> = vec![];
 
 #[derive(Error, Diagnostic, Debug)]
 #[diagnostic()]
