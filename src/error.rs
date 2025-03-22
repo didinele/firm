@@ -33,6 +33,11 @@ pub enum CompilerError {
         #[help]
         advice: Option<String>,
     },
+    #[error("Unexpected pub modifier")]
+    UnexpectedPubModifier {
+        #[label("here")]
+        at: SourceSpan,
+    },
     #[error("Unexpected end of file")]
     UnexpectedEndOfFile {
         #[label("here")]
