@@ -53,7 +53,6 @@ pub enum Token {
     Continue(SourceSpan),
     Function(SourceSpan),
     Let(SourceSpan),
-    Namespace(SourceSpan),
     Import(SourceSpan),
     As(SourceSpan),
     Type(SourceSpan),
@@ -61,11 +60,74 @@ pub enum Token {
     Struct(SourceSpan),
     Enum(SourceSpan),
     Pub(SourceSpan),
+    Static(SourceSpan),
 
     // Misc
     Comment(SourceSpan),
     Identifier(SourceSpan, String),
 
     // Internal
-    EOF(bool),
+    EOF(SourceSpan),
+}
+
+impl Token {
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            Token::Dot(span)
+            | Token::Comma(span)
+            | Token::Colon(span)
+            | Token::Semicolon(span)
+            | Token::LeftBracket(span)
+            | Token::RightBracket(span)
+            | Token::LeftParen(span)
+            | Token::RightParen(span)
+            | Token::LeftBrace(span)
+            | Token::RightBrace(span)
+            | Token::Plus(span)
+            | Token::Minus(span)
+            | Token::Star(span)
+            | Token::Slash(span)
+            | Token::Percent(span)
+            | Token::Equals(span)
+            | Token::Bang(span)
+            | Token::Greater(span)
+            | Token::Less(span)
+            | Token::EqualsEquals(span)
+            | Token::BangEquals(span)
+            | Token::GreaterEquals(span)
+            | Token::LessEquals(span)
+            | Token::PlusPlus(span)
+            | Token::MinusMinus(span)
+            | Token::PlusEquals(span)
+            | Token::MinusEquals(span)
+            | Token::StarEquals(span)
+            | Token::SlashEquals(span)
+            | Token::PercentEquals(span)
+            | Token::Arrow(span)
+            | Token::String(span, _)
+            | Token::Number(span, _)
+            | Token::True(span)
+            | Token::False(span)
+            | Token::If(span)
+            | Token::Else(span)
+            | Token::While(span)
+            | Token::For(span)
+            | Token::Return(span)
+            | Token::Break(span)
+            | Token::Continue(span)
+            | Token::Function(span)
+            | Token::Let(span)
+            | Token::Import(span)
+            | Token::As(span)
+            | Token::Type(span)
+            | Token::Pure(span)
+            | Token::Struct(span)
+            | Token::Enum(span)
+            | Token::Pub(span)
+            | Token::Static(span)
+            | Token::Comment(span)
+            | Token::Identifier(span, _)
+            | Token::EOF(span) => *span,
+        }
+    }
 }

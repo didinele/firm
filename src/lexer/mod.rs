@@ -1,4 +1,4 @@
-mod token;
+pub mod token;
 
 use std::iter::Peekable;
 
@@ -8,10 +8,16 @@ use token::Token;
 use crate::error::CompilerError;
 
 #[derive(Debug)]
+pub struct LexerResult {
+    pub tokens: Vec<Token>,
+    pub errors: Vec<CompilerError>,
+    pub fatal: bool,
+}
+
+#[derive(Debug)]
 pub struct Lexer<Input: Iterator<Item = char> + Clone> {
     input: Peekable<Input>,
     offset: usize,
-    eof: bool,
     pub errors: Vec<CompilerError>,
 }
 
@@ -20,7 +26,6 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
         Self {
             input: input.peekable(),
             offset: 0,
-            eof: false,
             errors: vec![],
         }
     }
@@ -31,7 +36,11 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
         span
     }
 
-    fn get_token(&mut self) -> Option<Token> {
+    /// Attempts to read the next token from the input stream.
+    /// If it encounters an error, it will push it to the errors vector and return None.
+    /// Additionally, it will also return None for whitespaces.
+    /// This method is to be called until an EOF token is reached.
+    fn try_get_token(&mut self) -> Option<Token> {
         match self.input.next() {
             // 1/2 char tokens
             Some(c) => Some(match c {
@@ -201,7 +210,7 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
                             .into(),
                         );
 
-                        return Some(Token::String(span, lexed));
+                        Token::String(span, lexed)
                     } else {
                         // We have no recovery offset, so we need to return an error and also end the iterator
                         let at = self.span_now(lexed.len() + additional);
@@ -210,14 +219,13 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
                             advice: None,
                             fatal: true,
                         });
-                        self.eof = true;
-                        return Some(Token::EOF(true));
+                        Token::EOF(0.into())
                     }
                 }
                 // Whitespace
                 ' ' | '\r' | '\t' | '\n' => {
                     self.offset += 1;
-                    return self.next();
+                    return None;
                 }
                 // Keywords and identifiers
                 c => {
@@ -231,7 +239,7 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
                             num.push(self.input.next().unwrap());
                         }
 
-                        return Some(Token::Number(self.span_now(num.len()), num));
+                        Token::Number(self.span_now(num.len()), num)
                     } else if c.is_alphanumeric() || c == '_' {
                         let mut identifier = String::from(c);
                         while self
@@ -244,75 +252,68 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
 
                         // Check if the identifier is a keyword
                         match identifier.as_str() {
-                            "true" => return Some(Token::True(self.span_now(4))),
-                            "false" => return Some(Token::False(self.span_now(5))),
-                            "if" => return Some(Token::If(self.span_now(2))),
-                            "else" => return Some(Token::Else(self.span_now(4))),
-                            "while" => return Some(Token::While(self.span_now(5))),
-                            "for" => return Some(Token::For(self.span_now(3))),
-                            "return" => return Some(Token::Return(self.span_now(6))),
-                            "break" => return Some(Token::Break(self.span_now(5))),
-                            "continue" => return Some(Token::Continue(self.span_now(8))),
-                            "function" => {
-                                return Some(Token::Function(self.span_now(8)));
-                            }
-                            "let" => return Some(Token::Let(self.span_now(3))),
-                            "namespace" => {
-                                return Some(Token::Namespace(self.span_now(9)));
-                            }
-                            "import" => return Some(Token::Import(self.span_now(6))),
-                            "as" => return Some(Token::As(self.span_now(2))),
-                            "type" => return Some(Token::Type(self.span_now(4))),
-                            "pure" => return Some(Token::Pure(self.span_now(4))),
-                            "struct" => {
-                                return Some(Token::Struct(self.span_now(6)));
-                            }
-                            "enum" => {
-                                return Some(Token::Enum(self.span_now(4)));
-                            }
-                            "pub" => {
-                                return Some(Token::Pub(self.span_now(3)));
-                            }
-                            _ => {
-                                return Some(Token::Identifier(
-                                    self.span_now(identifier.len()),
-                                    identifier,
-                                ));
-                            }
+                            "true" => Token::True(self.span_now(4)),
+                            "false" => Token::False(self.span_now(5)),
+                            "if" => Token::If(self.span_now(2)),
+                            "else" => Token::Else(self.span_now(4)),
+                            "while" => Token::While(self.span_now(5)),
+                            "for" => Token::For(self.span_now(3)),
+                            "return" => Token::Return(self.span_now(6)),
+                            "break" => Token::Break(self.span_now(5)),
+                            "continue" => Token::Continue(self.span_now(8)),
+                            "function" => Token::Function(self.span_now(8)),
+                            "let" => Token::Let(self.span_now(3)),
+                            "import" => Token::Import(self.span_now(6)),
+                            "as" => Token::As(self.span_now(2)),
+                            "type" => Token::Type(self.span_now(4)),
+                            "pure" => Token::Pure(self.span_now(4)),
+                            "struct" => Token::Struct(self.span_now(6)),
+                            "enum" => Token::Enum(self.span_now(4)),
+                            "pub" => Token::Pub(self.span_now(3)),
+                            "static" => Token::Static(self.span_now(6)),
+                            _ => Token::Identifier(self.span_now(identifier.len()), identifier),
                         }
                     } else {
                         let at = self.span_now(1);
-                        self.errors.push(CompilerError::UnknownCharacter {
-                            at,
-                        });
-
+                        self.errors.push(CompilerError::UnknownCharacter { at });
                         return None;
                     }
                 }
             }),
-            None => {
-                self.eof = true;
-                return Some(Token::EOF(false));
-            }
+            None => Some(Token::EOF(self.span_now(0))),
         }
     }
-}
 
-impl<Input: Iterator<Item = char> + Clone> Iterator for Lexer<Input> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.eof {
-            return None;
-        }
+    pub fn lex(mut self) -> LexerResult {
+        let mut tokens = vec![];
 
         loop {
-            let token = self.get_token();
-            match token {
-                Some(token) => return Some(token),
-                // Implies we just pushed an error, keep looping
-                None => {}
-            };
+            match self.try_get_token() {
+                Some(token @ Token::EOF(..)) => {
+                    tokens.push(token);
+                    break;
+                }
+                Some(token) => tokens.push(token),
+                // We encountered an error
+                None => continue,
+            }
+        }
+
+        let mut fatal = false;
+        let errors = self
+            .errors
+            .into_iter()
+            .inspect(|err| {
+                if err.is_fatal() {
+                    fatal = true;
+                }
+            })
+            .collect();
+
+        LexerResult {
+            tokens,
+            errors,
+            fatal,
         }
     }
 }
@@ -325,66 +326,61 @@ mod tests {
     #[test]
     fn assignment() {
         let input = "let x = 42;".chars();
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
+        let result = lexer.lex();
 
+        assert!(!result.fatal);
+        assert!(result.errors.is_empty());
         assert_eq!(
-            lexer.next().unwrap(),
-            Token::Let(SourceSpan::new(0.into(), 3))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Identifier(SourceSpan::new(4.into(), 1), "x".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Equals(SourceSpan::new(6.into(), 1))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Number(SourceSpan::new(8.into(), 2), "42".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Semicolon(SourceSpan::new(10.into(), 1))
+            result.tokens,
+            vec![
+                Token::Let(SourceSpan::new(0.into(), 3)),
+                Token::Identifier(SourceSpan::new(4.into(), 1), "x".to_string()),
+                Token::Equals(SourceSpan::new(6.into(), 1)),
+                Token::Number(SourceSpan::new(8.into(), 2), "42".to_string()),
+                Token::Semicolon(SourceSpan::new(10.into(), 1)),
+                Token::EOF(SourceSpan::new(11.into(), 0)),
+            ]
         );
     }
 
     #[test]
     fn string() {
         let input = "\"Hello, world!\";".chars();
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
+        let result = lexer.lex();
 
+        assert!(!result.fatal);
+        assert!(result.errors.is_empty());
         assert_eq!(
-            lexer.next().unwrap(),
-            Token::String(SourceSpan::new(0.into(), 15), "Hello, world!".to_string())
+            result.tokens,
+            vec![
+                Token::String(SourceSpan::new(0.into(), 15), "Hello, world!".to_string()),
+                Token::Semicolon(SourceSpan::new(15.into(), 1)),
+                Token::EOF(SourceSpan::new(16.into(), 0)),
+            ]
         );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Semicolon(SourceSpan::new(15.into(), 1))
-        );
-        assert_eq!(lexer.next().unwrap(), Token::EOF(false));
-        assert!(lexer.next().is_none());
     }
 
     #[test]
     fn unterminated_string() {
         let input = "\"Hello world!;".chars();
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
+        let result = lexer.lex();
 
+        assert!(!result.fatal);
         assert_eq!(
-            lexer.next().unwrap(),
-            Token::String(SourceSpan::new(0.into(), 14), "Hello world!".to_string())
+            result.tokens,
+            vec![
+                Token::String(SourceSpan::new(0.into(), 14), "Hello world!".to_string()),
+                Token::Semicolon(SourceSpan::new(14.into(), 1)),
+                Token::EOF(SourceSpan::new(15.into(), 0)),
+            ]
         );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Semicolon(SourceSpan::new(14.into(), 1))
-        );
-        assert_eq!(lexer.next().unwrap(), Token::EOF(false));
-        assert!(lexer.next().is_none());
 
-        assert_eq!(lexer.errors.len(), 1);
+        assert_eq!(result.errors.len(), 1);
         assert!(matches!(
-            lexer.errors[0],
+            result.errors[0],
             CompilerError::UnterminatedStringLiteral {
                 at: _,
                 advice: Some(_),
@@ -396,14 +392,18 @@ mod tests {
     #[test]
     fn unterminated_string_fatal() {
         let input = "\"Hello world".chars();
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
+        let result = lexer.lex();
 
-        assert_eq!(lexer.next().unwrap(), Token::EOF(true));
-        assert!(lexer.next().is_none());
+        assert!(result.fatal);
+        assert_eq!(
+            result.tokens,
+            vec![Token::EOF(SourceSpan::new(0.into(), 0))]
+        );
 
-        assert_eq!(lexer.errors.len(), 1);
+        assert_eq!(result.errors.len(), 1);
         assert!(matches!(
-            lexer.errors[0],
+            result.errors[0],
             CompilerError::UnterminatedStringLiteral {
                 at: _,
                 advice: None,
@@ -415,54 +415,30 @@ mod tests {
     #[test]
     fn unexpected_char() {
         let input = "let x = 10; 💝 f(x);".chars();
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
+        let result = lexer.lex();
 
+        assert!(!result.fatal);
         assert_eq!(
-            lexer.next().unwrap(),
-            Token::Let(SourceSpan::new(0.into(), 3))
+            result.tokens,
+            vec![
+                Token::Let(SourceSpan::new(0.into(), 3)),
+                Token::Identifier(SourceSpan::new(4.into(), 1), "x".to_string()),
+                Token::Equals(SourceSpan::new(6.into(), 1)),
+                Token::Number(SourceSpan::new(8.into(), 2), "10".to_string()),
+                Token::Semicolon(SourceSpan::new(10.into(), 1)),
+                Token::Identifier(SourceSpan::new(14.into(), 1), "f".to_string()),
+                Token::LeftParen(SourceSpan::new(15.into(), 1)),
+                Token::Identifier(SourceSpan::new(16.into(), 1), "x".to_string()),
+                Token::RightParen(SourceSpan::new(17.into(), 1)),
+                Token::Semicolon(SourceSpan::new(18.into(), 1)),
+                Token::EOF(SourceSpan::new(19.into(), 0)),
+            ]
         );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Identifier(SourceSpan::new(4.into(), 1), "x".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Equals(SourceSpan::new(6.into(), 1))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Number(SourceSpan::new(8.into(), 2), "10".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Semicolon(SourceSpan::new(10.into(), 1))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Identifier(SourceSpan::new(14.into(), 1), "f".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::LeftParen(SourceSpan::new(15.into(), 1))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Identifier(SourceSpan::new(16.into(), 1), "x".to_string())
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::RightParen(SourceSpan::new(17.into(), 1))
-        );
-        assert_eq!(
-            lexer.next().unwrap(),
-            Token::Semicolon(SourceSpan::new(18.into(), 1))
-        );
-        assert_eq!(lexer.next().unwrap(), Token::EOF(false));
-        assert!(lexer.next().is_none());
 
-        assert_eq!(lexer.errors.len(), 1);
+        assert_eq!(result.errors.len(), 1);
         assert!(matches!(
-            lexer.errors[0],
+            result.errors[0],
             CompilerError::UnknownCharacter { at: _ }
         ));
     }
