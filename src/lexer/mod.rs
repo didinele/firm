@@ -48,12 +48,12 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
                 ',' => Token::Comma(self.span_now(1)),
                 ':' => Token::Colon(self.span_now(1)),
                 ';' => Token::Semicolon(self.span_now(1)),
-                '{' => Token::LeftBracket(self.span_now(1)),
-                '}' => Token::RightBracket(self.span_now(1)),
+                '{' => Token::LeftCurly(self.span_now(1)),
+                '}' => Token::RightCurly(self.span_now(1)),
                 '(' => Token::LeftParen(self.span_now(1)),
                 ')' => Token::RightParen(self.span_now(1)),
-                '[' => Token::LeftBrace(self.span_now(1)),
-                ']' => Token::RightBrace(self.span_now(1)),
+                '[' => Token::LeftSquare(self.span_now(1)),
+                ']' => Token::RightSquare(self.span_now(1)),
                 '+' => {
                     if self.input.next_if_eq(&'=').is_some() {
                         Token::PlusEquals(self.span_now(2))

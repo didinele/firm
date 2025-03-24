@@ -7,12 +7,12 @@ pub enum Token {
     Comma(SourceSpan),
     Colon(SourceSpan),
     Semicolon(SourceSpan),
-    LeftBracket(SourceSpan),
-    RightBracket(SourceSpan),
+    LeftCurly(SourceSpan),
+    RightCurly(SourceSpan),
     LeftParen(SourceSpan),
     RightParen(SourceSpan),
-    LeftBrace(SourceSpan),
-    RightBrace(SourceSpan),
+    LeftSquare(SourceSpan),
+    RightSquare(SourceSpan),
     Plus(SourceSpan),
     Minus(SourceSpan),
     Star(SourceSpan),
@@ -77,12 +77,12 @@ impl Token {
             | Token::Comma(span)
             | Token::Colon(span)
             | Token::Semicolon(span)
-            | Token::LeftBracket(span)
-            | Token::RightBracket(span)
+            | Token::LeftCurly(span)
+            | Token::RightCurly(span)
             | Token::LeftParen(span)
             | Token::RightParen(span)
-            | Token::LeftBrace(span)
-            | Token::RightBrace(span)
+            | Token::LeftSquare(span)
+            | Token::RightSquare(span)
             | Token::Plus(span)
             | Token::Minus(span)
             | Token::Star(span)
