@@ -5,19 +5,21 @@ pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
     SourceSpan::new(start.offset().into(), len)
 }
 
-/// Denoted by `{ ... }`, followed by `statement_count` arbitrary `Stmt`s
+/// Denoted by `{ ... }`. Associated with `statement_count` arbitrary `Stmt`s
 #[derive(Debug)]
 pub struct BlockExpr {
     pub statement_count: usize,
     pub span: SourceSpan,
+    pub associated: usize,
 }
 
-/// Denoted by the `if` keyword, followed by an `Expr`, and
+/// Denoted by the `if` keyword, associated with an `Expr`, and
 /// another `Expr` if `has_else_branch` is `true`.
 #[derive(Debug)]
 pub struct IfExpr {
     pub has_else_branch: bool,
     pub span: SourceSpan,
+    pub associated: usize,
 }
 
 /// Represents an arbitrary "name", i.e. alphanumerical (and _) set
@@ -49,6 +51,16 @@ pub struct BoolLiteralExpr {
     pub span: SourceSpan,
 }
 
+/// Reperesents a type reference
+/// Associated with `arg_count` number of `TypeRefExpr`s
+#[derive(Debug)]
+pub struct TypeRefExpr {
+    pub name: String,
+    pub arg_count: usize,
+    pub span: SourceSpan,
+    pub associated: Option<usize>,
+}
+
 /// Represents an arbitrary expression.
 #[derive(Debug)]
 pub enum Expr {
@@ -58,6 +70,7 @@ pub enum Expr {
     StringLiteral(StringLiteralExpr),
     NumberLiteral(NumberLiteralExpr),
     BoolLiteral(BoolLiteralExpr),
+    TypeRef(TypeRefExpr),
 }
 
 /// Denoted by the `import mod as alias` syntax.
@@ -65,6 +78,15 @@ pub enum Expr {
 pub struct ImportStmt {
     pub module: String,
     pub alias: Option<String>,
+    pub span: SourceSpan,
+}
+
+/// Denoted by the `function` keyword
+#[derive(Debug)]
+pub struct FunctionStmt {
+    pub name: String,
+    pub args: Vec<String>,
+    pub is_pub: bool,
     pub span: SourceSpan,
 }
 
@@ -82,10 +104,23 @@ pub struct EnumStmt {
     pub span: SourceSpan,
 }
 
+/// Denoted by the `type` keyword, associated with a `TypeRefExpr` expression.
+/// i.e. `type Foo = Bar<Baz>;`
+#[derive(Debug)]
+pub struct TypeStmt {
+    pub name: String,
+    pub is_pub: bool,
+    pub span: SourceSpan,
+    pub associated: usize,
+}
+
 /// In firm, everything is a statement. expressions are statements that yield something
 #[derive(Debug)]
 pub enum Stmt {
     Import(ImportStmt),
+    Function(FunctionStmt),
+    Enum(EnumStmt),
+    Type(TypeStmt),
 
     Expr(Expr),
 }
