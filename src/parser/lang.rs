@@ -1,5 +1,7 @@
 use miette::SourceSpan;
 
+use crate::error::CompilerError;
+
 pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
     let len = end.offset() - start.offset() + end.len();
     SourceSpan::new(start.offset().into(), len)
@@ -136,4 +138,15 @@ pub enum Stmt {
     Struct(StructStmt),
 
     Expr(Expr),
+}
+
+#[derive(Debug, Default)]
+pub struct ApplicationFile {
+    /// Lexer + Parser errors
+    pub imports: Vec<ImportStmt>,
+    pub enums: Vec<EnumStmt>,
+    pub types: Vec<TypeStmt>,
+    pub structs: Vec<StructStmt>,
+    // TODO: Consider wrapper type
+    pub associated: Vec<Stmt>,
 }

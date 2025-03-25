@@ -1,0 +1,8 @@
+enum Foo {
+    pub Bar,
+}
+
+pub pub struct ThisIsAStruct {
+    a: u32,
+    foo: Foo,
+}

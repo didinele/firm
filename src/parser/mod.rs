@@ -3,7 +3,7 @@ pub mod lang;
 use std::iter::Peekable;
 use std::vec;
 
-use lang::span_from;
+use lang::{ApplicationFile, span_from};
 use miette::SourceSpan;
 
 use crate::error::CompilerError;
@@ -11,15 +11,18 @@ use crate::lexer::LexerResult;
 use crate::lexer::token::Token;
 
 #[derive(Debug)]
-pub struct ApplicationFile {
-    /// Lexer + Parser errors
+pub struct ParserResult {
+    pub file: ApplicationFile,
     pub errors: Vec<CompilerError>,
-    pub imports: Vec<lang::ImportStmt>,
-    pub enums: Vec<lang::EnumStmt>,
-    pub types: Vec<lang::TypeStmt>,
-    pub structs: Vec<lang::StructStmt>,
-    // TODO: Consider wrapper type
-    pub associated: Vec<lang::Stmt>,
+}
+
+impl ParserResult {
+    pub fn with_read_src_error(error: CompilerError) -> Self {
+        Self {
+            file: ApplicationFile::default(),
+            errors: vec![error],
+        }
+    }
 }
 
 macro_rules! next_of_type {
@@ -91,6 +94,7 @@ pub struct Parser {
     file: ApplicationFile,
     // If Some, implies that the last token was the `pub` modifier.
     pub_token: Option<Token>,
+    errors: Vec<CompilerError>,
 }
 
 impl Parser {
@@ -102,8 +106,8 @@ impl Parser {
 
         Self {
             tokens: lexed.tokens.into_iter().peekable(),
+            errors: lexed.errors,
             file: ApplicationFile {
-                errors: lexed.errors,
                 imports: vec![],
                 enums: vec![],
                 types: vec![],
@@ -116,8 +120,7 @@ impl Parser {
 
     fn check_bad_pub(&mut self) {
         if let Some(ref token) = self.pub_token {
-            self.file
-                .errors
+            self.errors
                 .push(CompilerError::UnexpectedPubModifier { at: token.span() });
         }
 
@@ -127,7 +130,7 @@ impl Parser {
     fn parse_type_ref(&mut self, fallback_span: SourceSpan) -> Result<lang::TypeRefExpr, ()> {
         let (span, name) = next_of_type!(
             self.tokens.next(),
-            self.file.errors,
+            self.errors,
             Token::Identifier(span, name),
             (span, name),
             (fallback_span, "__PLACEHOLDER__".to_string())
@@ -156,10 +159,10 @@ impl Parser {
                             .push(lang::Stmt::Expr(lang::Expr::TypeRef(typeref)));
                         parameter_count += 1;
 
-                        next_of_type!(self.tokens.next(), self.file.errors, Token::Comma(..))?;
+                        next_of_type!(self.tokens.next(), self.errors, Token::Comma(..))?;
                     }
                     Some(Token::EOF(..)) => {
-                        self.file.errors.push(CompilerError::UnexpectedEndOfFile {
+                        self.errors.push(CompilerError::UnexpectedEndOfFile {
                             at: span,
                             advice: Some(
                                 "Expected a `>` token to end the parameter list".to_string(),
@@ -168,7 +171,7 @@ impl Parser {
                         return Err(());
                     }
                     Some(token) => {
-                        self.file.errors.push(CompilerError::UnexpectedToken {
+                        self.errors.push(CompilerError::UnexpectedToken {
                             at: token.span(),
                             advice: Some(
                                 "Expected an identifier or `>` to end the parameter list"
@@ -196,12 +199,12 @@ impl Parser {
         })
     }
 
-    pub fn parse(mut self) -> ApplicationFile {
+    pub fn parse(mut self) -> ParserResult {
         'main: loop {
             match self.tokens.next() {
                 Some(token @ Token::Pub(..)) => {
                     if let Some(ref token) = self.pub_token {
-                        self.file.errors.push(CompilerError::UnexpectedToken {
+                        self.errors.push(CompilerError::UnexpectedToken {
                             at: token.span(),
                             advice: Some("Try removing the 2nd `pub`".to_string()),
                         });
@@ -214,7 +217,7 @@ impl Parser {
 
                     let (mod_span, module) = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Identifier(span, identifier),
                         (span, identifier),
                         (
@@ -229,7 +232,7 @@ impl Parser {
                             self.tokens.next();
                             parser_unwrap!(next_of_type!(
                                 self.tokens.next(),
-                                self.file.errors,
+                                self.errors,
                                 Token::Identifier(span, identifier),
                                 Some((span, identifier)),
                                 None
@@ -251,7 +254,7 @@ impl Parser {
                 Some(Token::Enum(enum_span)) => {
                     let name = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Identifier(_, identifier),
                         identifier,
                         "__PLACEHOLDER__".to_string()
@@ -270,7 +273,7 @@ impl Parser {
 
                     parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::LeftCurly(..)
                     ));
                     loop {
@@ -283,7 +286,7 @@ impl Parser {
                                 Some(Token::Equals(..)) => {
                                     let value = parser_unwrap!(next_of_type!(
                                         self.tokens.next(),
-                                        self.file.errors,
+                                        self.errors,
                                         Token::Number(_, number),
                                         number,
                                         "__PLACEHOLDER__".to_string()
@@ -305,7 +308,7 @@ impl Parser {
                                     } else {
                                         parser_unwrap!(next_of_type!(
                                             self.tokens.next(),
-                                            self.file.errors,
+                                            self.errors,
                                             Token::Comma(..)
                                         ));
                                     }
@@ -319,7 +322,7 @@ impl Parser {
                                     break;
                                 }
                                 Some(Token::EOF(..)) => {
-                                    self.file.errors.push(CompilerError::UnexpectedEndOfFile {
+                                    self.errors.push(CompilerError::UnexpectedEndOfFile {
                                         at: span,
                                         advice: Some(
                                             "Expected a `,`, `=`, or `}` token".to_string(),
@@ -328,13 +331,12 @@ impl Parser {
                                     break 'main;
                                 }
                                 Some(token) => {
-                                    self.file.errors.push(CompilerError::UnexpectedToken {
+                                    self.errors.push(CompilerError::UnexpectedToken {
                                         at: token.span(),
                                         advice: Some(
                                             "Expected a `,`, `=`, or `}` token".to_string(),
                                         ),
                                     });
-                                    break;
                                 }
                                 None => {
                                     debug_assert!(false, "We should never reach this code path");
@@ -342,18 +344,17 @@ impl Parser {
                                 }
                             },
                             Some(Token::EOF(at)) => {
-                                self.file.errors.push(CompilerError::UnexpectedEndOfFile {
+                                self.errors.push(CompilerError::UnexpectedEndOfFile {
                                     at,
                                     advice: Some("Expected an identifier or `}`".to_string()),
                                 });
                                 break 'main;
                             }
                             Some(token) => {
-                                self.file.errors.push(CompilerError::UnexpectedToken {
+                                self.errors.push(CompilerError::UnexpectedToken {
                                     at: token.span(),
                                     advice: Some("Expected an identifier or `}`".to_string()),
                                 });
-                                break;
                             }
                             None => {
                                 debug_assert!(false, "We should never reach this code path");
@@ -368,7 +369,7 @@ impl Parser {
                 Some(Token::Type(type_span)) => {
                     let (name_span, name) = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Identifier(span, identifier),
                         (span, identifier),
                         (
@@ -390,14 +391,14 @@ impl Parser {
 
                     parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Equals(..)
                     ));
 
                     let mut type_ref = parser_unwrap!(self.parse_type_ref(name_span));
                     let span = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Semicolon(span),
                         span,
                         SourceSpan::new(
@@ -419,7 +420,7 @@ impl Parser {
                 Some(Token::Struct(struct_span)) => {
                     let name = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::Identifier(_, identifier),
                         identifier,
                         "__PLACEHOLDER__".to_string()
@@ -439,7 +440,7 @@ impl Parser {
 
                     parser_unwrap!(next_of_type!(
                         self.tokens.next(),
-                        self.file.errors,
+                        self.errors,
                         Token::LeftCurly(..)
                     ));
 
@@ -453,7 +454,7 @@ impl Parser {
                             }
                             Some(token @ Token::Pub(..)) => {
                                 if is_field_pub {
-                                    self.file.errors.push(CompilerError::UnexpectedToken {
+                                    self.errors.push(CompilerError::UnexpectedToken {
                                         at: token.span(),
                                         advice: Some("Try removing the 2nd `pub`".to_string()),
                                     });
@@ -466,7 +467,7 @@ impl Parser {
 
                                 parser_unwrap!(next_of_type!(
                                     self.tokens.next(),
-                                    self.file.errors,
+                                    self.errors,
                                     Token::Colon(..)
                                 ));
 
@@ -489,7 +490,7 @@ impl Parser {
                                 } else {
                                     parser_unwrap!(next_of_type!(
                                         self.tokens.next(),
-                                        self.file.errors,
+                                        self.errors,
                                         Token::Comma(..)
                                     ));
                                 }
@@ -497,14 +498,14 @@ impl Parser {
                                 is_field_pub = false;
                             }
                             Some(Token::EOF(at)) => {
-                                self.file.errors.push(CompilerError::UnexpectedEndOfFile {
+                                self.errors.push(CompilerError::UnexpectedEndOfFile {
                                     at,
                                     advice: Some("Expected an identifier or `}`".to_string()),
                                 });
                                 break 'main;
                             }
                             Some(token) => {
-                                self.file.errors.push(CompilerError::UnexpectedToken {
+                                self.errors.push(CompilerError::UnexpectedToken {
                                     at: token.span(),
                                     advice: Some("Expected an identifier or `}`".to_string()),
                                 });
@@ -525,7 +526,7 @@ impl Parser {
                     break 'main;
                 }
                 Some(token) => {
-                    self.file.errors.push(CompilerError::UnexpectedToken {
+                    self.errors.push(CompilerError::UnexpectedToken {
                         at: token.span(),
                         advice: None,
                     });
@@ -537,7 +538,10 @@ impl Parser {
             }
         }
 
-        self.file
+        ParserResult {
+            file: self.file,
+            errors: self.errors,
+        }
     }
 }
 
@@ -556,8 +560,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.imports.len(), 1);
             assert_eq!(file.imports[0].module, "foo");
             assert_eq!(file.imports[0].alias, None);
@@ -570,8 +574,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.imports.len(), 1);
             assert_eq!(file.imports[0].module, "foo");
             assert_eq!(file.imports[0].alias, Some("bar".to_string()));
@@ -586,10 +590,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.imports.len(), 1);
@@ -603,10 +607,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedEndOfFile { at: _, advice: _ }
             ));
             // Fatal error end the parser early
@@ -620,14 +624,14 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 2);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 2);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert!(matches!(
-                file.errors[1],
+                errors[1],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.imports.len(), 1);
@@ -642,10 +646,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.imports.len(), 1);
@@ -660,10 +664,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedEndOfFile { at: _, advice: _ }
             ));
             assert_eq!(file.imports.len(), 0);
@@ -676,8 +680,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.imports.len(), 1);
             assert_eq!(file.imports[0].module, "foo123");
             assert_eq!(file.imports[0].alias, Some("bar456".to_string()));
@@ -690,10 +694,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedPubModifier { at: _ }
             ));
             assert_eq!(file.imports.len(), 1);
@@ -712,8 +716,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 1);
@@ -729,8 +733,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 2);
@@ -747,8 +751,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 2);
@@ -770,8 +774,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 3);
@@ -790,8 +794,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 3);
@@ -807,8 +811,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 1);
             assert_eq!(file.enums[0].name, "Foo");
             assert_eq!(file.enums[0].variants.len(), 1);
@@ -822,10 +826,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.enums.len(), 1);
@@ -841,8 +845,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.enums.len(), 2);
             assert_eq!(file.enums[0].name, "Foo");
             assert!(file.enums[0].is_pub);
@@ -861,9 +865,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            println!("{:?}", file.errors);
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.types.len(), 1);
             assert_eq!(file.types[0].is_pub, false);
             assert_eq!(file.types[0].name, "Foo");
@@ -883,8 +886,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.types.len(), 1);
             assert_eq!(file.types[0].is_pub, true);
             assert_eq!(file.types[0].name, "Foo");
@@ -898,10 +901,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.types.len(), 1);
@@ -916,8 +919,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.types.len(), 2);
             assert_eq!(file.types[0].is_pub, true);
             assert_eq!(file.types[0].name, "Foo");
@@ -936,8 +939,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.structs.len(), 1);
             assert_eq!(file.structs[0].name, "Foo");
             assert_eq!(file.structs[0].field_names.len(), 1);
@@ -957,8 +960,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.structs.len(), 1);
             assert_eq!(file.structs[0].is_pub, true);
             assert_eq!(file.structs[0].name, "Foo");
@@ -971,10 +974,10 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 1);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 1);
             assert!(matches!(
-                file.errors[0],
+                errors[0],
                 CompilerError::UnexpectedToken { at: _, advice: _ }
             ));
             assert_eq!(file.structs.len(), 1);
@@ -987,8 +990,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.structs.len(), 2);
             assert_eq!(file.structs[0].is_pub, true);
             assert_eq!(file.structs[0].name, "Foo");
@@ -1012,8 +1015,8 @@ mod tests {
             let lexed = lexer.lex();
             let parser = Parser::new(lexed);
 
-            let file = parser.parse();
-            assert_eq!(file.errors.len(), 0);
+            let ParserResult { file, errors } = parser.parse();
+            assert_eq!(errors.len(), 0);
             assert_eq!(file.structs.len(), 1);
             assert_eq!(file.structs[0].is_pub, true);
             assert_eq!(file.structs[0].name, "Foo");
