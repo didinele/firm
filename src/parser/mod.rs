@@ -942,6 +942,11 @@ mod tests {
             assert_eq!(file.structs[0].name, "Foo");
             assert_eq!(file.structs[0].field_names.len(), 1);
             assert_eq!(file.structs[0].field_names[0].1, "bar");
+            assert_eq!(file.associated.len(), 1);
+            assert!(matches!(
+                file.associated[0],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
             assert_eq!(file.structs[0].span, SourceSpan::new(0.into(), 23));
         }
 
@@ -989,6 +994,15 @@ mod tests {
             assert_eq!(file.structs[0].name, "Foo");
             assert_eq!(file.structs[1].is_pub, false);
             assert_eq!(file.structs[1].name, "Baz");
+            assert_eq!(file.associated.len(), 2);
+            assert!(matches!(
+                file.associated[0],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
+            assert!(matches!(
+                file.associated[1],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
         }
 
         #[test]
@@ -1010,6 +1024,20 @@ mod tests {
             assert_eq!(file.structs[0].field_names[1].1, "y");
             assert_eq!(file.structs[0].field_names[2].0, false);
             assert_eq!(file.structs[0].field_names[2].1, "z");
+            assert_eq!(file.structs[0].associated, 0);
+            assert_eq!(file.associated.len(), 3);
+            assert!(matches!(
+                file.associated[0],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
+            assert!(matches!(
+                file.associated[1],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
+            assert!(matches!(
+                file.associated[2],
+                lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
         }
     }
 }
