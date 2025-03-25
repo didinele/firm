@@ -58,7 +58,7 @@ pub struct TypeRefExpr {
     pub name: String,
     pub arg_count: usize,
     pub span: SourceSpan,
-    pub associated: Option<usize>,
+    pub associated: usize,
 }
 
 /// Represents an arbitrary expression.
@@ -114,6 +114,18 @@ pub struct TypeStmt {
     pub associated: usize,
 }
 
+/// Represents a struct definition, denoted by the `struct` keyword.
+/// Associated with `field_names.len()` number of `TypeRefExpr`s.
+#[derive(Debug)]
+pub struct StructStmt {
+    pub name: String,
+    /// (is_pub, field_name)
+    pub field_names: Vec<(bool, String)>,
+    pub is_pub: bool,
+    pub span: SourceSpan,
+    pub associated: usize,
+}
+
 /// In firm, everything is a statement. expressions are statements that yield something
 #[derive(Debug)]
 pub enum Stmt {
@@ -121,6 +133,7 @@ pub enum Stmt {
     Function(FunctionStmt),
     Enum(EnumStmt),
     Type(TypeStmt),
+    Struct(StructStmt),
 
     Expr(Expr),
 }

@@ -17,6 +17,7 @@ pub struct ApplicationFile {
     pub imports: Vec<lang::ImportStmt>,
     pub enums: Vec<lang::EnumStmt>,
     pub types: Vec<lang::TypeStmt>,
+    pub structs: Vec<lang::StructStmt>,
     // TODO: Consider wrapper type
     pub associated: Vec<lang::Stmt>,
 }
@@ -106,6 +107,7 @@ impl Parser {
                 imports: vec![],
                 enums: vec![],
                 types: vec![],
+                structs: vec![],
                 associated: vec![],
             },
             pub_token: None,
@@ -131,7 +133,9 @@ impl Parser {
             (fallback_span, "__PLACEHOLDER__".to_string())
         )?;
 
-        let (arg_count, associated) = if self
+        let associated = self.file.associated.len();
+
+        let arg_count = if self
             .tokens
             .peek()
             .is_some_and(|token| matches!(token, Token::Less(..)))
@@ -140,8 +144,6 @@ impl Parser {
             self.tokens.next();
 
             let mut parameter_count = 0;
-            let first_index = self.file.associated.len();
-
             loop {
                 match self.tokens.next() {
                     Some(Token::Greater(..)) => break,
@@ -181,16 +183,9 @@ impl Parser {
                 }
             }
 
-            (
-                parameter_count,
-                if parameter_count != 0 {
-                    Some(first_index)
-                } else {
-                    None
-                },
-            )
+            parameter_count
         } else {
-            (0, None)
+            0
         };
 
         Ok(lang::TypeRefExpr {
@@ -254,15 +249,12 @@ impl Parser {
                     });
                 }
                 Some(Token::Enum(enum_span)) => {
-                    let (_, name) = parser_unwrap!(next_of_type!(
+                    let name = parser_unwrap!(next_of_type!(
                         self.tokens.next(),
                         self.file.errors,
-                        Token::Identifier(span, identifier),
-                        (span, identifier),
-                        (
-                            SourceSpan::new((enum_span.offset() + enum_span.len()).into(), 0),
-                            "__PLACEHOLDER__".to_string()
-                        )
+                        Token::Identifier(_, identifier),
+                        identifier,
+                        "__PLACEHOLDER__".to_string()
                     ));
 
                     let mut enum_stmt = lang::EnumStmt {
@@ -305,8 +297,10 @@ impl Parser {
                                     };
 
                                     if is_curly {
-                                        self.tokens.next();
-                                        enum_stmt.span = span_from(&enum_stmt.span, &span);
+                                        enum_stmt.span = span_from(
+                                            &enum_stmt.span,
+                                            &self.tokens.next().unwrap().span(),
+                                        );
                                         break;
                                     } else {
                                         parser_unwrap!(next_of_type!(
@@ -344,24 +338,26 @@ impl Parser {
                                 }
                                 None => {
                                     debug_assert!(false, "We should never reach this code path");
+                                    break 'main;
                                 }
                             },
                             Some(Token::EOF(at)) => {
                                 self.file.errors.push(CompilerError::UnexpectedEndOfFile {
                                     at,
-                                    advice: Some("Expected a `,`, `=`, or `}` token".to_string()),
+                                    advice: Some("Expected an identifier or `}`".to_string()),
                                 });
                                 break 'main;
                             }
                             Some(token) => {
                                 self.file.errors.push(CompilerError::UnexpectedToken {
                                     at: token.span(),
-                                    advice: None,
+                                    advice: Some("Expected an identifier or `}`".to_string()),
                                 });
                                 break;
                             }
                             None => {
                                 debug_assert!(false, "We should never reach this code path");
+                                break 'main;
                             }
                         }
                     }
@@ -384,7 +380,11 @@ impl Parser {
                     let mut typedecl = lang::TypeStmt {
                         name,
                         is_pub: self.pub_token.is_some(),
-                        span: type_span,
+                        span: self
+                            .pub_token
+                            .as_ref()
+                            .map(|token| token.span())
+                            .unwrap_or(type_span),
                         associated: self.file.associated.len(),
                     };
 
@@ -406,8 +406,6 @@ impl Parser {
                         )
                     ));
 
-                    println!("{:?}", type_ref);
-
                     type_ref.span = span_from(&type_ref.span, &span);
                     typedecl.span = span_from(&typedecl.span, &type_ref.span);
 
@@ -418,9 +416,113 @@ impl Parser {
 
                     self.pub_token = None;
                 }
+                Some(Token::Struct(struct_span)) => {
+                    let name = parser_unwrap!(next_of_type!(
+                        self.tokens.next(),
+                        self.file.errors,
+                        Token::Identifier(_, identifier),
+                        identifier,
+                        "__PLACEHOLDER__".to_string()
+                    ));
+
+                    let mut struct_stmt = lang::StructStmt {
+                        name,
+                        field_names: vec![],
+                        is_pub: self.pub_token.is_some(),
+                        span: self
+                            .pub_token
+                            .as_ref()
+                            .map(|token| token.span())
+                            .unwrap_or(struct_span),
+                        associated: self.file.associated.len(),
+                    };
+
+                    parser_unwrap!(next_of_type!(
+                        self.tokens.next(),
+                        self.file.errors,
+                        Token::LeftCurly(..)
+                    ));
+
+                    let mut is_field_pub = false;
+
+                    loop {
+                        match self.tokens.next() {
+                            Some(Token::RightCurly(span)) => {
+                                struct_stmt.span = span_from(&struct_stmt.span, &span);
+                                break;
+                            }
+                            Some(token @ Token::Pub(..)) => {
+                                if is_field_pub {
+                                    self.file.errors.push(CompilerError::UnexpectedToken {
+                                        at: token.span(),
+                                        advice: Some("Try removing the 2nd `pub`".to_string()),
+                                    });
+                                } else {
+                                    is_field_pub = true;
+                                }
+                            }
+                            Some(Token::Identifier(span, identifier)) => {
+                                struct_stmt.field_names.push((is_field_pub, identifier));
+
+                                parser_unwrap!(next_of_type!(
+                                    self.tokens.next(),
+                                    self.file.errors,
+                                    Token::Colon(..)
+                                ));
+
+                                let typeref = parser_unwrap!(self.parse_type_ref(span));
+                                self.file
+                                    .associated
+                                    .push(lang::Stmt::Expr(lang::Expr::TypeRef(typeref)));
+
+                                let is_curly = match self.tokens.peek() {
+                                    Some(Token::RightCurly(..)) => true,
+                                    _ => false,
+                                };
+
+                                if is_curly {
+                                    struct_stmt.span = span_from(
+                                        &struct_stmt.span,
+                                        &self.tokens.next().unwrap().span(),
+                                    );
+                                    break;
+                                } else {
+                                    parser_unwrap!(next_of_type!(
+                                        self.tokens.next(),
+                                        self.file.errors,
+                                        Token::Comma(..)
+                                    ));
+                                }
+
+                                is_field_pub = false;
+                            }
+                            Some(Token::EOF(at)) => {
+                                self.file.errors.push(CompilerError::UnexpectedEndOfFile {
+                                    at,
+                                    advice: Some("Expected an identifier or `}`".to_string()),
+                                });
+                                break 'main;
+                            }
+                            Some(token) => {
+                                self.file.errors.push(CompilerError::UnexpectedToken {
+                                    at: token.span(),
+                                    advice: Some("Expected an identifier or `}`".to_string()),
+                                });
+                                break;
+                            }
+                            None => {
+                                debug_assert!(false, "We should never reach this code path");
+                                break 'main;
+                            }
+                        }
+                    }
+
+                    self.pub_token = None;
+                    self.file.structs.push(struct_stmt);
+                }
                 Some(Token::EOF(..)) => {
                     // We are done parsing
-                    break;
+                    break 'main;
                 }
                 Some(token) => {
                     self.file.errors.push(CompilerError::UnexpectedToken {
@@ -430,7 +532,7 @@ impl Parser {
                 }
                 None => {
                     debug_assert!(false, "We should never reach this code path");
-                    break;
+                    break 'main;
                 }
             }
         }
@@ -786,7 +888,7 @@ mod tests {
             assert_eq!(file.types.len(), 1);
             assert_eq!(file.types[0].is_pub, true);
             assert_eq!(file.types[0].name, "Foo");
-            assert_eq!(file.types[0].span, SourceSpan::new(4.into(), 15));
+            assert_eq!(file.types[0].span, SourceSpan::new(0.into(), 19));
         }
 
         #[test]
@@ -805,6 +907,109 @@ mod tests {
             assert_eq!(file.types.len(), 1);
             assert_eq!(file.types[0].is_pub, true);
             assert_eq!(file.types[0].name, "Foo");
+        }
+
+        #[test]
+        fn with_pub_no_linger() {
+            let input = "pub type Foo = Bar; type Baz = Qux;".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 0);
+            assert_eq!(file.types.len(), 2);
+            assert_eq!(file.types[0].is_pub, true);
+            assert_eq!(file.types[0].name, "Foo");
+            assert_eq!(file.types[1].is_pub, false);
+            assert_eq!(file.types[1].name, "Baz");
+        }
+    }
+
+    mod structs {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            let input = "struct Foo { bar: Bar }".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 0);
+            assert_eq!(file.structs.len(), 1);
+            assert_eq!(file.structs[0].name, "Foo");
+            assert_eq!(file.structs[0].field_names.len(), 1);
+            assert_eq!(file.structs[0].field_names[0].1, "bar");
+            assert_eq!(file.structs[0].span, SourceSpan::new(0.into(), 23));
+        }
+
+        #[test]
+        fn with_pub() {
+            let input = "pub struct Foo { bar: Bar }".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 0);
+            assert_eq!(file.structs.len(), 1);
+            assert_eq!(file.structs[0].is_pub, true);
+            assert_eq!(file.structs[0].name, "Foo");
+        }
+
+        #[test]
+        fn double_pub() {
+            let input = "pub pub struct Foo { bar: Bar }".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 1);
+            assert!(matches!(
+                file.errors[0],
+                CompilerError::UnexpectedToken { at: _, advice: _ }
+            ));
+            assert_eq!(file.structs.len(), 1);
+        }
+
+        #[test]
+        fn with_pub_no_linger() {
+            let input = "pub struct Foo { bar: Bar } struct Baz { qux: Qux }".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 0);
+            assert_eq!(file.structs.len(), 2);
+            assert_eq!(file.structs[0].is_pub, true);
+            assert_eq!(file.structs[0].name, "Foo");
+            assert_eq!(file.structs[1].is_pub, false);
+            assert_eq!(file.structs[1].name, "Baz");
+        }
+
+        #[test]
+        fn with_pub_members() {
+            let input = "pub struct Foo { x: T, pub y: U, z: V }".chars();
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(lexed);
+
+            let file = parser.parse();
+            assert_eq!(file.errors.len(), 0);
+            assert_eq!(file.structs.len(), 1);
+            assert_eq!(file.structs[0].is_pub, true);
+            assert_eq!(file.structs[0].name, "Foo");
+            assert_eq!(file.structs[0].field_names.len(), 3);
+            assert_eq!(file.structs[0].field_names[0].0, false);
+            assert_eq!(file.structs[0].field_names[0].1, "x");
+            assert_eq!(file.structs[0].field_names[1].0, true);
+            assert_eq!(file.structs[0].field_names[1].1, "y");
+            assert_eq!(file.structs[0].field_names[2].0, false);
+            assert_eq!(file.structs[0].field_names[2].1, "z");
         }
     }
 }
