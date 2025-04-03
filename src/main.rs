@@ -9,6 +9,9 @@ use error::{CompilerError, CompilerErrors, FileErrors};
 use parser::ParserResult;
 use threadpool::ThreadPool;
 
+static THREAD_BUG_MSG: &'static str =
+    "Compiler bug. The main thread did not wait for the worker thread to finish.";
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -89,19 +92,40 @@ fn main() -> miette::Result<()> {
                     let src = match src {
                         Ok(src) => src,
                         Err(inner) => {
-                            tx.send((path, (None, ParserResult::with_read_src_error(CompilerError::IOError { inner })))).expect("Compiler bug. The main thread did not wait for the worker thread to finish.");
+                            tx.send((
+                                path,
+                                (
+                                    None,
+                                    ParserResult::with_pre_parse_errors(vec![
+                                        CompilerError::IOError { inner },
+                                    ]),
+                                ),
+                            ))
+                            .expect(THREAD_BUG_MSG);
                             return;
                         }
                     };
 
                     let lexer = lexer::Lexer::new(src.chars());
                     let lexed = lexer.lex();
+                    if lexed.fatal {
+                        tx.send((
+                            path,
+                            (Some(src), ParserResult::with_pre_parse_errors(lexed.errors)),
+                        ))
+                        .expect(THREAD_BUG_MSG);
+                        return;
+                    }
+
                     let parser = parser::Parser::new(lexed);
                     let file = parser.parse();
 
                     // At this point, let's strip the start of the path (i.e. <root>/src/)
-                    let path = path.strip_prefix(&format!("{}/src/", root)).unwrap_or(&path).to_string();
-                    tx.send((path, (Some(src), file))).expect("Compiler bug. The main thread did not wait for the worker thread to finish.");
+                    let path = path
+                        .strip_prefix(&format!("{}/src/", root))
+                        .unwrap_or(&path)
+                        .to_string();
+                    tx.send((path, (Some(src), file))).expect(THREAD_BUG_MSG);
                 });
             }
 

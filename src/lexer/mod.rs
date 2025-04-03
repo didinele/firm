@@ -267,6 +267,7 @@ impl<Input: Iterator<Item = char> + Clone> Lexer<Input> {
                             "as" => Token::As(self.span_now(2)),
                             "type" => Token::Type(self.span_now(4)),
                             "pure" => Token::Pure(self.span_now(4)),
+                            "const" => Token::Const(self.span_now(5)),
                             "struct" => Token::Struct(self.span_now(6)),
                             "enum" => Token::Enum(self.span_now(4)),
                             "pub" => Token::Pub(self.span_now(3)),

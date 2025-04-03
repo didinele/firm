@@ -1,7 +1,5 @@
 use miette::SourceSpan;
 
-use crate::error::CompilerError;
-
 pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
     let len = end.offset() - start.offset() + end.len();
     SourceSpan::new(start.offset().into(), len)
@@ -83,15 +81,6 @@ pub struct ImportStmt {
     pub span: SourceSpan,
 }
 
-/// Denoted by the `function` keyword
-#[derive(Debug)]
-pub struct FunctionStmt {
-    pub name: String,
-    pub args: Vec<String>,
-    pub is_pub: bool,
-    pub span: SourceSpan,
-}
-
 /// Represents an enum, denoted by the `enum` keyword.
 /// The `variants` field contains a list of tuples, where each tuple
 /// contains the name of the variant and an optional value.
@@ -124,6 +113,19 @@ pub struct StructStmt {
     /// (is_pub, field_name)
     pub field_names: Vec<(bool, String)>,
     pub is_pub: bool,
+    pub span: SourceSpan,
+    pub associated: usize,
+}
+
+/// Represents a function definition, denoted by the `function` keyword.
+/// Associated with `arg_names.len()` number of `TypeRefExpr`s, a `TypeRefExpr` return type,
+/// and a `BlockExpr` body.
+#[derive(Debug)]
+pub struct FunctionStmt {
+    pub name: String,
+    pub arg_names: Vec<String>,
+    pub is_pub: bool,
+    pub is_pure: bool,
     pub span: SourceSpan,
     pub associated: usize,
 }

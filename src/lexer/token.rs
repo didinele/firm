@@ -57,6 +57,7 @@ pub enum Token {
     As(SourceSpan),
     Type(SourceSpan),
     Pure(SourceSpan),
+    Const(SourceSpan),
     Struct(SourceSpan),
     Enum(SourceSpan),
     Pub(SourceSpan),
@@ -124,6 +125,7 @@ impl Token {
             | Token::Struct(span)
             | Token::Enum(span)
             | Token::Pub(span)
+            | Token::Const(span)
             | Token::Static(span)
             | Token::Comment(span)
             | Token::Identifier(span, _)

@@ -17,10 +17,10 @@ pub struct ParserResult {
 }
 
 impl ParserResult {
-    pub fn with_read_src_error(error: CompilerError) -> Self {
+    pub fn with_pre_parse_errors(errors: Vec<CompilerError>) -> Self {
         Self {
             file: ApplicationFile::default(),
-            errors: vec![error],
+            errors,
         }
     }
 }
@@ -520,6 +520,28 @@ impl Parser {
 
                     self.pub_token = None;
                     self.file.structs.push(struct_stmt);
+                }
+                Some(Token::Function(function_span)) => {
+                    let name = parser_unwrap!(next_of_type!(
+                        self.tokens.next(),
+                        self.errors,
+                        Token::Identifier(_, identifier),
+                        identifier,
+                        "__PLACEHOLDER__".to_string()
+                    ));
+
+                    let mut function_stmt = lang::FunctionStmt {
+                        name,
+                        is_pub: self.pub_token.is_some(),
+                        arg_names: vec![],
+                        is_pure: false,
+                        span: self
+                            .pub_token
+                            .as_ref()
+                            .map(|token| token.span())
+                            .unwrap_or(function_span),
+                        associated: self.file.associated.len(),
+                    };
                 }
                 Some(Token::EOF(..)) => {
                     // We are done parsing
