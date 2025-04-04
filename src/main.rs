@@ -81,7 +81,7 @@ fn main() -> miette::Result<()> {
                 None => ThreadPool::default(),
             };
 
-            let (tx, rx) = std::sync::mpsc::channel::<(String, (Option<String>, ParserResult))>();
+            let (tx, rx) = std::sync::mpsc::channel::<(String, (Option<&'static str>, ParserResult))>();
 
             for path in files {
                 let tx = tx.clone();
@@ -106,7 +106,10 @@ fn main() -> miette::Result<()> {
                         }
                     };
 
-                    let lexer = lexer::Lexer::new(src.chars());
+                    // Big design decisions here. Porbably want to document this more
+                    let src = src.leak();
+
+                    let lexer = lexer::Lexer::new(src);
                     let lexed = lexer.lex();
                     if lexed.fatal {
                         tx.send((
@@ -117,7 +120,7 @@ fn main() -> miette::Result<()> {
                         return;
                     }
 
-                    let parser = parser::Parser::new(lexed);
+                    let parser = parser::Parser::new(src, lexed);
                     let file = parser.parse();
 
                     // At this point, let's strip the start of the path (i.e. <root>/src/)

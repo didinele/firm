@@ -81,7 +81,7 @@ pub struct FileErrors {
     pub file_name: String,
     #[source_code]
     // There's cases, like I/O errors, where we won't have source code.
-    pub source_code: Option<String>,
+    pub source_code: Option<&'static str>,
     #[related]
     pub errors: Vec<CompilerError>,
 }

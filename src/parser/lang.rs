@@ -1,8 +1,21 @@
+// An interesting thing to note throughout this file is the contrast between `&'static str`` and `SourceSpan`
+// In all actuality, they are essentially the same, both should be 2x usize, with &'static str
+// being a pointer to the start + a len, while SourceSpan is an offset + a len
+// We use `SourceSpan`s for our `span` properties as a sort of semantic, and also just to signal
+// it's going to be used by miette for potential error reporting, as opposed to the `&'static str`s we use for
+// things like `name`s and literal `value`s, which tap directly into the source code. We only need immutable reads
+// into these things at a compile-time level, so it would be a total waste to copy those spans and allocate `String`s
+
 use miette::SourceSpan;
 
 pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
     let len = end.offset() - start.offset() + end.len();
     SourceSpan::new(start.offset().into(), len)
+}
+
+pub fn placeholder_span_from(span: &SourceSpan) -> SourceSpan {
+    let offset = span.offset() + span.len();
+    SourceSpan::new(offset.into(), 0)
 }
 
 /// Denoted by `{ ... }`. Associated with `statement_count` arbitrary `Stmt`s
@@ -26,21 +39,21 @@ pub struct IfExpr {
 /// of characters, not recognized as a keyword.
 #[derive(Debug)]
 pub struct IdentifierExpr {
-    pub name: String,
+    pub name: &'static str,
     pub span: SourceSpan,
 }
 
 /// Represents a string literal
 #[derive(Debug)]
 pub struct StringLiteralExpr {
-    pub value: String,
+    pub value: &'static str,
     pub span: SourceSpan,
 }
 
 /// Represents a number literal
 #[derive(Debug)]
 pub struct NumberLiteralExpr {
-    pub value: String,
+    pub value: &'static str,
     pub span: SourceSpan,
 }
 
@@ -55,7 +68,7 @@ pub struct BoolLiteralExpr {
 /// Associated with `arg_count` number of `TypeRefExpr`s
 #[derive(Debug)]
 pub struct TypeRefExpr {
-    pub name: String,
+    pub name: &'static str,
     pub arg_count: usize,
     pub span: SourceSpan,
     pub associated: usize,
@@ -76,8 +89,8 @@ pub enum Expr {
 /// Denoted by the `import mod as alias` syntax.
 #[derive(Debug)]
 pub struct ImportStmt {
-    pub module: String,
-    pub alias: Option<String>,
+    pub module: &'static str,
+    pub alias: Option<&'static str>,
     pub span: SourceSpan,
 }
 
@@ -89,8 +102,8 @@ pub struct ImportStmt {
 /// 3) all values are acutally integers
 #[derive(Debug)]
 pub struct EnumStmt {
-    pub name: String,
-    pub variants: Vec<(String, Option<String>)>,
+    pub name: &'static str,
+    pub variants: Vec<(&'static str, Option<&'static str>)>,
     pub is_pub: bool,
     pub span: SourceSpan,
 }
@@ -99,7 +112,7 @@ pub struct EnumStmt {
 /// i.e. `type Foo = Bar<Baz>;`
 #[derive(Debug)]
 pub struct TypeStmt {
-    pub name: String,
+    pub name: &'static str,
     pub is_pub: bool,
     pub span: SourceSpan,
     pub associated: usize,
@@ -109,9 +122,9 @@ pub struct TypeStmt {
 /// Associated with `field_names.len()` number of `TypeRefExpr`s.
 #[derive(Debug)]
 pub struct StructStmt {
-    pub name: String,
+    pub name: &'static str,
     /// (is_pub, field_name)
-    pub field_names: Vec<(bool, String)>,
+    pub field_names: Vec<(bool, &'static str)>,
     pub is_pub: bool,
     pub span: SourceSpan,
     pub associated: usize,
@@ -122,8 +135,8 @@ pub struct StructStmt {
 /// and a `BlockExpr` body.
 #[derive(Debug)]
 pub struct FunctionStmt {
-    pub name: String,
-    pub arg_names: Vec<String>,
+    pub name: &'static str,
+    pub arg_names: Vec<&'static str>,
     pub is_pub: bool,
     pub is_pure: bool,
     pub span: SourceSpan,

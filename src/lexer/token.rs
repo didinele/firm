@@ -1,135 +1,109 @@
 use miette::SourceSpan;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    // 1 char
-    Dot(SourceSpan),
-    Comma(SourceSpan),
-    Colon(SourceSpan),
-    Semicolon(SourceSpan),
-    LeftCurly(SourceSpan),
-    RightCurly(SourceSpan),
-    LeftParen(SourceSpan),
-    RightParen(SourceSpan),
-    LeftSquare(SourceSpan),
-    RightSquare(SourceSpan),
-    Plus(SourceSpan),
-    Minus(SourceSpan),
-    Star(SourceSpan),
-    Slash(SourceSpan),
-    Percent(SourceSpan),
-    Equals(SourceSpan),
-    Bang(SourceSpan),
-    Greater(SourceSpan),
-    Less(SourceSpan),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TokenKind {
+   // 1 char
+   Dot,
+   Comma,
+   Colon,
+   Semicolon,
+   LeftCurly,
+   RightCurly,
+   LeftParen,
+   RightParen,
+   LeftSquare,
+   RightSquare,
+   Plus,
+   Minus,
+   Star,
+   Slash,
+   Percent,
+   Equals,
+   Bang,
+   Greater,
+   Less,
 
-    // 2 char
-    EqualsEquals(SourceSpan),
-    BangEquals(SourceSpan),
-    GreaterEquals(SourceSpan),
-    LessEquals(SourceSpan),
-    PlusPlus(SourceSpan),
-    MinusMinus(SourceSpan),
-    PlusEquals(SourceSpan),
-    MinusEquals(SourceSpan),
-    StarEquals(SourceSpan),
-    SlashEquals(SourceSpan),
-    PercentEquals(SourceSpan),
-    Arrow(SourceSpan),
+   // 2 char
+   EqualsEquals,
+   BangEquals,
+   GreaterEquals,
+   LessEquals,
+   PlusPlus,
+   MinusMinus,
+   PlusEquals,
+   MinusEquals,
+   StarEquals,
+   SlashEquals,
+   PercentEquals,
+   Arrow,
 
-    // literals
-    String(SourceSpan, String),
-    Number(SourceSpan, String),
+   // literals
+   String,
+   Number,
 
-    // Keywords
-    True(SourceSpan),
-    False(SourceSpan),
-    If(SourceSpan),
-    Else(SourceSpan),
-    While(SourceSpan),
-    For(SourceSpan),
-    Return(SourceSpan),
-    Break(SourceSpan),
-    Continue(SourceSpan),
-    Function(SourceSpan),
-    Let(SourceSpan),
-    Import(SourceSpan),
-    As(SourceSpan),
-    Type(SourceSpan),
-    Pure(SourceSpan),
-    Const(SourceSpan),
-    Struct(SourceSpan),
-    Enum(SourceSpan),
-    Pub(SourceSpan),
-    Static(SourceSpan),
+   // Keywords
+   True,
+   False,
+   If,
+   Else,
+   While,
+   For,
+   Return,
+   Break,
+   Continue,
+   Function,
+   Let,
+   Import,
+   As,
+   Type,
+   Pure,
+   Const,
+   Struct,
+   Enum,
+   Pub,
+   Static,
 
-    // Misc
-    Comment(SourceSpan),
-    Identifier(SourceSpan, String),
+   // Misc
+   Whitespace,
+   Comment,
+   Identifier,
 
-    // Internal
-    EOF(SourceSpan),
+   // Internal
+   EOF,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Token {
+    kind: TokenKind,
+    span: SourceSpan,
 }
 
 impl Token {
-    pub fn span(&self) -> SourceSpan {
-        match self {
-            Token::Dot(span)
-            | Token::Comma(span)
-            | Token::Colon(span)
-            | Token::Semicolon(span)
-            | Token::LeftCurly(span)
-            | Token::RightCurly(span)
-            | Token::LeftParen(span)
-            | Token::RightParen(span)
-            | Token::LeftSquare(span)
-            | Token::RightSquare(span)
-            | Token::Plus(span)
-            | Token::Minus(span)
-            | Token::Star(span)
-            | Token::Slash(span)
-            | Token::Percent(span)
-            | Token::Equals(span)
-            | Token::Bang(span)
-            | Token::Greater(span)
-            | Token::Less(span)
-            | Token::EqualsEquals(span)
-            | Token::BangEquals(span)
-            | Token::GreaterEquals(span)
-            | Token::LessEquals(span)
-            | Token::PlusPlus(span)
-            | Token::MinusMinus(span)
-            | Token::PlusEquals(span)
-            | Token::MinusEquals(span)
-            | Token::StarEquals(span)
-            | Token::SlashEquals(span)
-            | Token::PercentEquals(span)
-            | Token::Arrow(span)
-            | Token::String(span, _)
-            | Token::Number(span, _)
-            | Token::True(span)
-            | Token::False(span)
-            | Token::If(span)
-            | Token::Else(span)
-            | Token::While(span)
-            | Token::For(span)
-            | Token::Return(span)
-            | Token::Break(span)
-            | Token::Continue(span)
-            | Token::Function(span)
-            | Token::Let(span)
-            | Token::Import(span)
-            | Token::As(span)
-            | Token::Type(span)
-            | Token::Pure(span)
-            | Token::Struct(span)
-            | Token::Enum(span)
-            | Token::Pub(span)
-            | Token::Const(span)
-            | Token::Static(span)
-            | Token::Comment(span)
-            | Token::Identifier(span, _)
-            | Token::EOF(span) => *span,
+    pub fn new(kind: TokenKind, span: SourceSpan) -> Self {
+        Self { kind, span }
+    }
+
+    /// Equivelent to Token::new(other_token.span(), different_span)
+    /// This is a bit of a hack to be used inside parsers' next_of_type! macro, where we take the $Pattern
+    /// as a `pat`, which does not allow us to to use it within `Token::new()`
+    pub fn with_span(&self, span: SourceSpan) -> Self {
+        Self {
+            kind: self.kind,
+            span,
         }
+    }
+
+    pub fn kind(&self) -> TokenKind {
+        self.kind
+    }
+
+    pub fn span(&self) -> SourceSpan {
+        self.span
+    }
+
+    // To save some memory, we don't need to store a ref to the whole src in the token
+    // when working with tokens, we should always have it available
+    pub fn src(&self, src: &'static str) -> &'static str {
+        &src[self.span.offset()..self.span.offset()+self.span.len()]
     }
 }
