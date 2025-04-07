@@ -81,7 +81,8 @@ fn main() -> miette::Result<()> {
                 None => ThreadPool::default(),
             };
 
-            let (tx, rx) = std::sync::mpsc::channel::<(String, (Option<&'static str>, ParserResult))>();
+            let (tx, rx) =
+                std::sync::mpsc::channel::<(String, (Option<&'static str>, ParserResult))>();
 
             for path in files {
                 let tx = tx.clone();

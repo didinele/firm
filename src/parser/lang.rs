@@ -73,7 +73,7 @@ pub struct TypeRefExpr {
     pub span: SourceSpan,
     pub name: &'static str,
     #[related_many]
-    pub generic_args: (usize, usize)
+    pub generic_args: (usize, usize),
 }
 
 /// Represents an arbitrary expression.

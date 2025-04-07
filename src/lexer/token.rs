@@ -2,74 +2,74 @@ use miette::SourceSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenKind {
-   // 1 char
-   Dot,
-   Comma,
-   Colon,
-   Semicolon,
-   LeftCurly,
-   RightCurly,
-   LeftParen,
-   RightParen,
-   LeftSquare,
-   RightSquare,
-   Plus,
-   Minus,
-   Star,
-   Slash,
-   Percent,
-   Equals,
-   Bang,
-   Greater,
-   Less,
+    // 1 char
+    Dot,
+    Comma,
+    Colon,
+    Semicolon,
+    LeftCurly,
+    RightCurly,
+    LeftParen,
+    RightParen,
+    LeftSquare,
+    RightSquare,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Equals,
+    Bang,
+    Greater,
+    Less,
 
-   // 2 char
-   EqualsEquals,
-   BangEquals,
-   GreaterEquals,
-   LessEquals,
-   PlusPlus,
-   MinusMinus,
-   PlusEquals,
-   MinusEquals,
-   StarEquals,
-   SlashEquals,
-   PercentEquals,
-   Arrow,
+    // 2 char
+    EqualsEquals,
+    BangEquals,
+    GreaterEquals,
+    LessEquals,
+    PlusPlus,
+    MinusMinus,
+    PlusEquals,
+    MinusEquals,
+    StarEquals,
+    SlashEquals,
+    PercentEquals,
+    Arrow,
 
-   // literals
-   String,
-   Number,
+    // literals
+    String,
+    Number,
 
-   // Keywords
-   True,
-   False,
-   If,
-   Else,
-   While,
-   For,
-   Return,
-   Break,
-   Continue,
-   Function,
-   Let,
-   Import,
-   As,
-   Type,
-   Pure,
-   Const,
-   Struct,
-   Enum,
-   Pub,
-   Static,
+    // Keywords
+    True,
+    False,
+    If,
+    Else,
+    While,
+    For,
+    Return,
+    Break,
+    Continue,
+    Function,
+    Let,
+    Import,
+    As,
+    Type,
+    Pure,
+    Const,
+    Struct,
+    Enum,
+    Pub,
+    Static,
 
-   // Misc
-   Whitespace,
-   Comment,
-   Identifier,
+    // Misc
+    Whitespace,
+    Comment,
+    Identifier,
 
-   // Internal
-   EOF,
+    // Internal
+    EOF,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,6 +104,6 @@ impl Token {
     // To save some memory, we don't need to store a ref to the whole src in the token
     // when working with tokens, we should always have it available
     pub fn src(&self, src: &'static str) -> &'static str {
-        &src[self.span.offset()..self.span.offset()+self.span.len()]
+        &src[self.span.offset()..self.span.offset() + self.span.len()]
     }
 }
