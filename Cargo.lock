@@ -164,9 +164,19 @@ name = "firm"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "firm_macros",
  "miette",
  "thiserror 2.0.12",
  "threadpool",
+]
+
+[[package]]
+name = "firm_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

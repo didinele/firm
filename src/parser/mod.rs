@@ -134,7 +134,7 @@ impl Parser {
             fallback_span
         )?;
 
-        let associated = self.file.associated.len();
+        let first_arg_index = self.file.associated.len();
         let mut final_span = identifier.span();
 
         let arg_count = if self
@@ -193,9 +193,8 @@ impl Parser {
 
         Ok(lang::TypeRefExpr {
             name: identifier.src(self.src),
-            arg_count,
             span: span_from(&identifier.span(), &final_span),
-            associated,
+            generic_args: (first_arg_index, arg_count),
         })
     }
 
@@ -391,7 +390,7 @@ impl Parser {
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
-                        associated: self.file.associated.len(),
+                        definition: self.file.associated.len(),
                     };
 
                     parser_unwrap!(next_of_type!(
@@ -435,7 +434,7 @@ impl Parser {
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
-                        associated: self.file.associated.len(),
+                        field_types: (self.file.associated.len(), 0),
                     };
 
                     parser_unwrap!(next_of_type!(
@@ -517,6 +516,8 @@ impl Parser {
                         }
                     }
 
+                    struct_stmt.field_types.1 = struct_stmt.field_names.len();
+
                     self.pub_token = None;
                     self.file.structs.push(struct_stmt);
                 }
@@ -531,14 +532,16 @@ impl Parser {
                     let mut function_stmt = lang::FunctionStmt {
                         name: name.src(self.src),
                         is_pub: self.pub_token.is_some(),
-                        arg_names: vec![],
                         is_pure: false,
+                        arg_names: vec![],
+                        arg_types: (self.file.associated.len(), 0),
                         span: self
                             .pub_token
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
-                        associated: self.file.associated.len(),
+                        body: 0,
+                        return_type: Some(0),
                     };
                 }
                 // We are done parsing
@@ -876,7 +879,7 @@ mod tests {
             assert_eq!(file.types[0].is_pub, false);
             assert_eq!(file.types[0].name, "Foo");
             assert_eq!(file.types[0].span, SourceSpan::new(0.into(), 15));
-            assert_eq!(file.types[0].associated, 0);
+            assert_eq!(file.types[0].definition, 0);
             assert_eq!(file.associated.len(), 1);
             assert!(matches!(
                 file.associated[0],
@@ -1032,7 +1035,7 @@ mod tests {
             assert_eq!(file.structs[0].field_names[1].1, "y");
             assert_eq!(file.structs[0].field_names[2].0, false);
             assert_eq!(file.structs[0].field_names[2].1, "z");
-            assert_eq!(file.structs[0].associated, 0);
+            assert_eq!(file.structs[0].field_types, (0, 3));
             assert_eq!(file.associated.len(), 3);
             assert!(matches!(
                 file.associated[0],

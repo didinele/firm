@@ -1,4 +1,4 @@
-// An interesting thing to note throughout this file is the contrast between `&'static str`` and `SourceSpan`
+// An interesting thing to note throughout this file is the contrast between `&'static str` and `SourceSpan`
 // In all actuality, they are essentially the same, both should be 2x usize, with &'static str
 // being a pointer to the start + a len, while SourceSpan is an offset + a len
 // We use `SourceSpan`s for our `span` properties as a sort of semantic, and also just to signal
@@ -6,6 +6,7 @@
 // things like `name`s and literal `value`s, which tap directly into the source code. We only need immutable reads
 // into these things at a compile-time level, so it would be a total waste to copy those spans and allocate `String`s
 
+use firm_macros::AstNode;
 use miette::SourceSpan;
 
 pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
@@ -18,64 +19,65 @@ pub fn placeholder_span_from(span: &SourceSpan) -> SourceSpan {
     SourceSpan::new(offset.into(), 0)
 }
 
-/// Denoted by `{ ... }`. Associated with `statement_count` arbitrary `Stmt`s
-#[derive(Debug)]
+/// Denoted by `{ ... }`.
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct BlockExpr {
     pub statement_count: usize,
     pub span: SourceSpan,
-    pub associated: usize,
+    #[related_many]
+    pub exprs: (usize, usize),
 }
 
-/// Denoted by the `if` keyword, associated with an `Expr`, and
-/// another `Expr` if `has_else_branch` is `true`.
-#[derive(Debug)]
+/// Denoted by the `if` keyword.
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct IfExpr {
-    pub has_else_branch: bool,
     pub span: SourceSpan,
-    pub associated: usize,
+    #[related]
+    pub if_branch: usize,
+    #[related_maybe]
+    pub else_branch: Option<usize>,
 }
 
 /// Represents an arbitrary "name", i.e. alphanumerical (and _) set
 /// of characters, not recognized as a keyword.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct IdentifierExpr {
-    pub name: &'static str,
     pub span: SourceSpan,
+    pub name: &'static str,
 }
 
 /// Represents a string literal
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct StringLiteralExpr {
-    pub value: &'static str,
     pub span: SourceSpan,
+    pub value: &'static str,
 }
 
 /// Represents a number literal
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct NumberLiteralExpr {
-    pub value: &'static str,
     pub span: SourceSpan,
+    pub value: &'static str,
 }
 
 /// Represents a boolean literal
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct BoolLiteralExpr {
-    pub value: bool,
     pub span: SourceSpan,
+    pub value: bool,
 }
 
 /// Reperesents a type reference
-/// Associated with `arg_count` number of `TypeRefExpr`s
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct TypeRefExpr {
-    pub name: &'static str,
-    pub arg_count: usize,
     pub span: SourceSpan,
-    pub associated: usize,
+    pub name: &'static str,
+    #[related_many]
+    pub generic_args: (usize, usize)
 }
 
 /// Represents an arbitrary expression.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Block(BlockExpr),
     If(IfExpr),
@@ -87,11 +89,11 @@ pub enum Expr {
 }
 
 /// Denoted by the `import mod as alias` syntax.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct ImportStmt {
+    pub span: SourceSpan,
     pub module: &'static str,
     pub alias: Option<&'static str>,
-    pub span: SourceSpan,
 }
 
 /// Represents an enum, denoted by the `enum` keyword.
@@ -100,51 +102,55 @@ pub struct ImportStmt {
 /// Note that the parser guarantees nothing. It's up to the typechecker
 /// to error if the enum 1) provides all None or all Some 2) all values and names are unique
 /// 3) all values are acutally integers
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct EnumStmt {
+    pub span: SourceSpan,
     pub name: &'static str,
     pub variants: Vec<(&'static str, Option<&'static str>)>,
     pub is_pub: bool,
-    pub span: SourceSpan,
 }
 
-/// Denoted by the `type` keyword, associated with a `TypeRefExpr` expression.
+/// Denoted by the `type` keyword
 /// i.e. `type Foo = Bar<Baz>;`
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct TypeStmt {
     pub name: &'static str,
     pub is_pub: bool,
     pub span: SourceSpan,
-    pub associated: usize,
+    #[related]
+    pub definition: usize,
 }
 
 /// Represents a struct definition, denoted by the `struct` keyword.
-/// Associated with `field_names.len()` number of `TypeRefExpr`s.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct StructStmt {
+    pub span: SourceSpan,
     pub name: &'static str,
     /// (is_pub, field_name)
     pub field_names: Vec<(bool, &'static str)>,
     pub is_pub: bool,
-    pub span: SourceSpan,
-    pub associated: usize,
+    #[related_many]
+    pub field_types: (usize, usize),
 }
 
 /// Represents a function definition, denoted by the `function` keyword.
-/// Associated with `arg_names.len()` number of `TypeRefExpr`s, a `TypeRefExpr` return type,
-/// and a `BlockExpr` body.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct FunctionStmt {
+    pub span: SourceSpan,
     pub name: &'static str,
-    pub arg_names: Vec<&'static str>,
     pub is_pub: bool,
     pub is_pure: bool,
-    pub span: SourceSpan,
-    pub associated: usize,
+    pub arg_names: Vec<&'static str>,
+    #[related_many]
+    pub arg_types: (usize, usize),
+    #[related_maybe]
+    pub return_type: Option<usize>,
+    #[related]
+    pub body: usize,
 }
 
 /// In firm, everything is a statement. expressions are statements that yield something
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt {
     Import(ImportStmt),
     Function(FunctionStmt),

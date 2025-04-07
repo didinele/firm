@@ -8,3 +8,4 @@ clap = { version = "4.5.32", features = ["derive"] }
 miette = { version = "7.5.0", features = ["fancy"] }
 thiserror = { version = "2.0.12" }
 threadpool = "1.8.1"
+firm_macros = { path = "firm_macros" }
