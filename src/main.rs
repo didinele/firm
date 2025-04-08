@@ -107,7 +107,6 @@ fn main() -> miette::Result<()> {
                         }
                     };
 
-                    // TODO: Further documentation on why I opted for this
                     let src = src.leak();
 
                     let lexer = lexer::Lexer::new(src);

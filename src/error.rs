@@ -4,7 +4,7 @@ use thiserror::Error;
 #[derive(Error, Diagnostic, Debug)]
 #[diagnostic()]
 pub enum CompilerError {
-    // I/O & Misc
+    // I/O & CLI
     #[error("Failed to open a source file or a directory")]
     IOError {
         #[source]
@@ -93,6 +93,6 @@ pub struct CompilerErrors {
     #[related]
     pub file_errors: Vec<FileErrors>,
     #[related]
-    // For I/O errors, we don't have source code or sometimes even the file name.
+    // Like failing to read into the directory
     pub other_errors: Vec<CompilerError>,
 }

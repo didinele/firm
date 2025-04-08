@@ -364,7 +364,7 @@ impl Parser {
                             }
                             _ => {
                                 self.errors.push(CompilerError::UnexpectedToken {
-                                    at: token.span(),
+                                    at: enum_body_token.span(),
                                     advice: Some("Expected an identifier or `}`".to_string()),
                                 });
                             }

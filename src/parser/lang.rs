@@ -163,11 +163,9 @@ pub enum Stmt {
 
 #[derive(Debug, Default)]
 pub struct ApplicationFile {
-    /// Lexer + Parser errors
     pub imports: Vec<ImportStmt>,
     pub enums: Vec<EnumStmt>,
     pub types: Vec<TypeStmt>,
     pub structs: Vec<StructStmt>,
-    // TODO: Consider wrapper type
     pub associated: Vec<Stmt>,
 }

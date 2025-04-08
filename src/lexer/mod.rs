@@ -235,16 +235,17 @@ impl Lexer {
                 // Keywords and identifiers
                 c => {
                     if c.is_digit(10) {
-                        let mut num = String::from(c);
+                        let mut len = 1;
                         while self
                             .input
                             .peek()
                             .is_some_and(|c| c.is_digit(10) || *c == '.')
                         {
-                            num.push(self.input.next().unwrap());
+                            len += 1;
+                            self.input.next().unwrap();
                         }
 
-                        self.token_now(TokenKind::Number, num.len())
+                        self.token_now(TokenKind::Number, len)
                     } else if c.is_alphanumeric() || c == '_' {
                         let mut identifier = String::from(c);
                         while self

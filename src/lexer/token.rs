@@ -64,7 +64,6 @@ pub enum TokenKind {
     Static,
 
     // Misc
-    Whitespace,
     Comment,
     Identifier,
 
