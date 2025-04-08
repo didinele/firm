@@ -24,22 +24,22 @@ impl ToTokens for ParsedAstNode {
 
         let name = ast_node.ident.clone();
         let impls = ast_node.fields.iter().filter_map(|field| {
-            let related = field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("related"));
-            let related_maybe = field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("related_maybe"));
-            let related_many = field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("related_many"));
-            let related_many_maybe = field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("related_many_maybe"));
+            let mut related = false;
+            let mut related_maybe = false;
+            let mut related_many = false;
+            let mut related_many_maybe = false;
+
+            for attr in &field.attrs {
+                if attr.path().is_ident("related") {
+                    related = true;
+                } else if attr.path().is_ident("related_maybe") {
+                    related_maybe = true;
+                } else if attr.path().is_ident("related_many") {
+                    related_many = true;
+                } else if attr.path().is_ident("related_many_maybe") {
+                    related_many_maybe = true;
+                }
+            }
 
             let true_num = (related as usize)
                 + (related_maybe as usize)
