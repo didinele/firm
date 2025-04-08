@@ -1,6 +1,7 @@
 mod error;
 mod lexer;
 mod parser;
+mod util;
 
 use std::collections::HashMap;
 

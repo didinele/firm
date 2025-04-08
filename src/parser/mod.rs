@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 use std::vec;
 
-use lang::{ApplicationFile, placeholder_span_from, span_from};
+use crate::util::spans::{self, earliest};
+use lang::ApplicationFile;
 use miette::SourceSpan;
 
 use crate::error::CompilerError;
@@ -203,7 +204,7 @@ impl Parser {
 
         Ok(lang::TypeRefExpr {
             name: identifier.src(self.src),
-            span: span_from(&identifier.span(), &final_span),
+            span: spans::from_range(&identifier.span(), &final_span),
             generic_args: (first_arg_index, arg_count),
         })
     }
@@ -220,7 +221,7 @@ impl Parser {
                             advice: Some(format!("Try removing the 2nd `{}`", modifier)),
                         });
                     } else {
-                        self.modifier_tokens.insert(TokenKind::Pub, token);
+                        self.modifier_tokens.insert(modifier, token);
                     }
                 }
                 TokenKind::Import => {
@@ -230,7 +231,7 @@ impl Parser {
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Identifier,
-                        placeholder_span_from(&token.span())
+                        spans::placeholder_from(&token.span())
                     ));
 
                     let alias = if self
@@ -244,7 +245,7 @@ impl Parser {
                             self.tokens.next().expect(BAD_NEXT_MSG),
                             self.errors,
                             TokenKind::Identifier,
-                            placeholder_span_from(&as_token.span())
+                            spans::placeholder_from(&as_token.span())
                         )))
                     } else {
                         None
@@ -253,9 +254,9 @@ impl Parser {
                     self.file.imports.push(lang::ImportStmt {
                         module: identifier.src(self.src),
                         span: if let Some(ref alias) = alias {
-                            span_from(&token.span(), &alias.span())
+                            spans::from_range(&token.span(), &alias.span())
                         } else {
-                            span_from(&token.span(), &token.span())
+                            spans::from_range(&token.span(), &token.span())
                         },
                         alias: alias
                             .map(|alias| {
@@ -275,7 +276,7 @@ impl Parser {
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Identifier,
-                        placeholder_span_from(&token.span())
+                        spans::placeholder_from(&token.span())
                     ));
 
                     let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
@@ -300,7 +301,7 @@ impl Parser {
                         match enum_body_token.kind() {
                             TokenKind::RightCurly => {
                                 enum_stmt.span =
-                                    span_from(&enum_stmt.span, &enum_body_token.span());
+                                    spans::from_range(&enum_stmt.span, &enum_body_token.span());
                                 break;
                             }
                             TokenKind::Identifier => {
@@ -311,7 +312,7 @@ impl Parser {
                                             self.tokens.next().expect(BAD_NEXT_MSG),
                                             self.errors,
                                             TokenKind::Number,
-                                            placeholder_span_from(&after_iden_token.span())
+                                            spans::placeholder_from(&after_iden_token.span())
                                         ));
 
                                         enum_stmt.variants.push((
@@ -322,7 +323,7 @@ impl Parser {
                                         if self.tokens.peek().is_some_and(|token| {
                                             token.kind() == TokenKind::RightCurly
                                         }) {
-                                            enum_stmt.span = span_from(
+                                            enum_stmt.span = spans::from_range(
                                                 &enum_stmt.span,
                                                 &self.tokens.next().unwrap().span(),
                                             );
@@ -341,8 +342,10 @@ impl Parser {
                                             .push((enum_body_token.src(self.src), None));
                                     }
                                     TokenKind::RightCurly => {
-                                        enum_stmt.span =
-                                            span_from(&enum_stmt.span, &after_iden_token.span());
+                                        enum_stmt.span = spans::from_range(
+                                            &enum_stmt.span,
+                                            &after_iden_token.span(),
+                                        );
                                         enum_stmt
                                             .variants
                                             .push((enum_body_token.src(self.src), None));
@@ -393,7 +396,7 @@ impl Parser {
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Identifier,
-                        placeholder_span_from(&token.span())
+                        spans::placeholder_from(&token.span())
                     ));
 
                     let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
@@ -418,11 +421,11 @@ impl Parser {
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Semicolon,
-                        placeholder_span_from(&type_ref.span)
+                        spans::placeholder_from(&type_ref.span)
                     ));
 
-                    type_ref.span = span_from(&type_ref.span, &semi.span());
-                    typedecl.span = span_from(&typedecl.span, &type_ref.span);
+                    type_ref.span = spans::from_range(&type_ref.span, &semi.span());
+                    typedecl.span = spans::from_range(&typedecl.span, &type_ref.span);
 
                     self.file.types.push(typedecl);
                     self.file
@@ -438,7 +441,7 @@ impl Parser {
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Identifier,
-                        placeholder_span_from(&token.span())
+                        spans::placeholder_from(&token.span())
                     ));
 
                     let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
@@ -465,7 +468,7 @@ impl Parser {
                         match struct_body_token.kind() {
                             TokenKind::RightCurly => {
                                 struct_stmt.span =
-                                    span_from(&struct_stmt.span, &struct_body_token.span());
+                                    spans::from_range(&struct_stmt.span, &struct_body_token.span());
                                 break;
                             }
                             TokenKind::Pub => {
@@ -500,7 +503,7 @@ impl Parser {
                                     .peek()
                                     .is_some_and(|token| token.kind() == TokenKind::RightCurly)
                                 {
-                                    struct_stmt.span = span_from(
+                                    struct_stmt.span = spans::from_range(
                                         &struct_stmt.span,
                                         &self.tokens.next().unwrap().span(),
                                     );
@@ -538,24 +541,32 @@ impl Parser {
                     self.file.structs.push(struct_stmt);
                 }
                 TokenKind::Function => {
+                    self.check_bad_modifiers(&[TokenKind::Pub, TokenKind::Pure, TokenKind::Const]);
+
                     let name = parser_unwrap!(next_of_type!(
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
                         TokenKind::Identifier,
-                        placeholder_span_from(&token.span())
+                        spans::placeholder_from(&token.span())
                     ));
 
                     let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
+                    let pure_token = self.modifier_tokens.get(&TokenKind::Pure);
+                    let const_token = self.modifier_tokens.get(&TokenKind::Const);
+
+                    let earliest = [pub_token, pure_token, const_token]
+                        .iter()
+                        .filter_map(|token| token.map(|token| token.span()))
+                        .min_by_key(|token| token.offset());
+
                     let mut function_stmt = lang::FunctionStmt {
                         name: name.src(self.src),
                         is_pub: pub_token.is_some(),
-                        is_pure: false,
+                        is_const: const_token.is_some(),
+                        is_pure: pure_token.is_some(),
                         arg_names: vec![],
                         arg_types: (self.file.associated.len(), 0),
-                        span: pub_token
-                            .as_ref()
-                            .map(|token| token.span())
-                            .unwrap_or(token.span()),
+                        span: earliest.unwrap_or(token.span()),
                         body: 0,
                         return_type: Some(0),
                     };
@@ -1064,6 +1075,22 @@ mod tests {
             assert!(matches!(
                 file.associated[2],
                 lang::Stmt::Expr(lang::Expr::TypeRef(_))
+            ));
+        }
+
+        #[test]
+        fn with_bad_modifier() {
+            let input = "pure pub struct Foo { x: T, pub y: U, z: V }";
+            let lexer = Lexer::new(input);
+            let lexed = lexer.lex();
+            let parser = Parser::new(input, lexed);
+
+            let ParserResult { errors, .. } = parser.parse();
+
+            assert_eq!(errors.len(), 1);
+            assert!(matches!(
+                errors[0],
+                CompilerError::UnexpectedModifier { at: _ }
             ));
         }
     }

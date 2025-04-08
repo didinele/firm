@@ -9,16 +9,6 @@
 use firm_macros::AstNode;
 use miette::SourceSpan;
 
-pub fn span_from(start: &SourceSpan, end: &SourceSpan) -> SourceSpan {
-    let len = end.offset() - start.offset() + end.len();
-    SourceSpan::new(start.offset().into(), len)
-}
-
-pub fn placeholder_span_from(span: &SourceSpan) -> SourceSpan {
-    let offset = span.offset() + span.len();
-    SourceSpan::new(offset.into(), 0)
-}
-
 /// Denoted by `{ ... }`.
 #[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct BlockExpr {
@@ -140,6 +130,7 @@ pub struct FunctionStmt {
     pub name: &'static str,
     pub is_pub: bool,
     pub is_pure: bool,
+    pub is_const: bool,
     pub arg_names: Vec<&'static str>,
     #[related_many]
     pub arg_types: (usize, usize),
