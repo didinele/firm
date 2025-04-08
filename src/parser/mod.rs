@@ -1,5 +1,6 @@
 pub mod lang;
 
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::vec;
 
@@ -90,8 +91,7 @@ pub struct Parser {
     /// Throughout the lifetime of this struct, this instance will basically always be in a partial
     /// state. It is the return value of the `parse` function, at which point it will be fully populated.
     file: ApplicationFile,
-    // If Some, implies that the last token was the `pub` modifier.
-    pub_token: Option<Token>,
+    modifier_tokens: HashMap<TokenKind, Token>,
     errors: Vec<CompilerError>,
 }
 
@@ -113,17 +113,27 @@ impl Parser {
                 structs: vec![],
                 associated: vec![],
             },
-            pub_token: None,
+            modifier_tokens: HashMap::new(),
         }
     }
 
-    fn check_bad_pub(&mut self) {
-        if let Some(ref token) = self.pub_token {
-            self.errors
-                .push(CompilerError::UnexpectedPubModifier { at: token.span() });
+    fn check_bad_modifiers(&mut self, allowed: &'static [TokenKind]) {
+        if self.modifier_tokens.is_empty() {
+            return;
         }
 
-        self.pub_token = None;
+        let mut to_remove = vec![];
+        for (kind, token) in &self.modifier_tokens {
+            if !allowed.contains(kind) {
+                self.errors
+                    .push(CompilerError::UnexpectedModifier { at: token.span() });
+                to_remove.push(*kind);
+            }
+        }
+
+        for kind in to_remove {
+            self.modifier_tokens.remove(&kind);
+        }
     }
 
     fn parse_type_ref(&mut self, fallback_span: SourceSpan) -> Result<lang::TypeRefExpr, ()> {
@@ -203,18 +213,18 @@ impl Parser {
             let token = self.tokens.next().expect(BAD_NEXT_MSG);
 
             match token.kind() {
-                TokenKind::Pub => {
-                    if let Some(ref token) = self.pub_token {
+                modifier @ (TokenKind::Pub | TokenKind::Pure | TokenKind::Const) => {
+                    if let Some(token) = self.modifier_tokens.get(&modifier) {
                         self.errors.push(CompilerError::UnexpectedToken {
                             at: token.span(),
-                            advice: Some("Try removing the 2nd `pub`".to_string()),
+                            advice: Some(format!("Try removing the 2nd `{}`", modifier)),
                         });
                     } else {
-                        self.pub_token = Some(token);
+                        self.modifier_tokens.insert(TokenKind::Pub, token);
                     }
                 }
                 TokenKind::Import => {
-                    self.check_bad_pub();
+                    self.check_bad_modifiers(&[]);
 
                     let identifier = parser_unwrap!(next_of_type!(
                         self.tokens.next().expect(BAD_NEXT_MSG),
@@ -251,7 +261,7 @@ impl Parser {
                             .map(|alias| {
                                 // We *really* want to give None here when we find a non-identifier
                                 // token for the alias, but that'd require refactoring next_of_type! again,
-                                // so we just do this silly thing :3
+                                // so we just do this silly thing
                                 let src = alias.src(self.src);
                                 if src.is_empty() { None } else { Some(src) }
                             })
@@ -259,6 +269,8 @@ impl Parser {
                     });
                 }
                 TokenKind::Enum => {
+                    self.check_bad_modifiers(&[TokenKind::Pub]);
+
                     let name = parser_unwrap!(next_of_type!(
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
@@ -266,12 +278,12 @@ impl Parser {
                         placeholder_span_from(&token.span())
                     ));
 
+                    let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
                     let mut enum_stmt = lang::EnumStmt {
                         name: name.src(self.src),
                         variants: vec![],
-                        is_pub: self.pub_token.is_some(),
-                        span: self
-                            .pub_token
+                        is_pub: pub_token.is_some(),
+                        span: pub_token
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
@@ -371,10 +383,12 @@ impl Parser {
                         }
                     }
 
-                    self.pub_token = None;
+                    self.modifier_tokens.clear();
                     self.file.enums.push(enum_stmt);
                 }
                 TokenKind::Type => {
+                    self.check_bad_modifiers(&[TokenKind::Pub]);
+
                     let identifier = parser_unwrap!(next_of_type!(
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
@@ -382,11 +396,11 @@ impl Parser {
                         placeholder_span_from(&token.span())
                     ));
 
+                    let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
                     let mut typedecl = lang::TypeStmt {
                         name: identifier.src(self.src),
-                        is_pub: self.pub_token.is_some(),
-                        span: self
-                            .pub_token
+                        is_pub: pub_token.is_some(),
+                        span: pub_token
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
@@ -415,9 +429,11 @@ impl Parser {
                         .associated
                         .push(lang::Stmt::Expr(lang::Expr::TypeRef(type_ref)));
 
-                    self.pub_token = None;
+                    self.modifier_tokens.clear();
                 }
                 TokenKind::Struct => {
+                    self.check_bad_modifiers(&[TokenKind::Pub]);
+
                     let name = parser_unwrap!(next_of_type!(
                         self.tokens.next().expect(BAD_NEXT_MSG),
                         self.errors,
@@ -425,12 +441,12 @@ impl Parser {
                         placeholder_span_from(&token.span())
                     ));
 
+                    let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
                     let mut struct_stmt = lang::StructStmt {
                         name: name.src(self.src),
                         field_names: vec![],
-                        is_pub: self.pub_token.is_some(),
-                        span: self
-                            .pub_token
+                        is_pub: pub_token.is_some(),
+                        span: pub_token
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
@@ -518,7 +534,7 @@ impl Parser {
 
                     struct_stmt.field_types.1 = struct_stmt.field_names.len();
 
-                    self.pub_token = None;
+                    self.modifier_tokens.clear();
                     self.file.structs.push(struct_stmt);
                 }
                 TokenKind::Function => {
@@ -529,14 +545,14 @@ impl Parser {
                         placeholder_span_from(&token.span())
                     ));
 
+                    let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
                     let mut function_stmt = lang::FunctionStmt {
                         name: name.src(self.src),
-                        is_pub: self.pub_token.is_some(),
+                        is_pub: pub_token.is_some(),
                         is_pure: false,
                         arg_names: vec![],
                         arg_types: (self.file.associated.len(), 0),
-                        span: self
-                            .pub_token
+                        span: pub_token
                             .as_ref()
                             .map(|token| token.span())
                             .unwrap_or(token.span()),
@@ -630,7 +646,7 @@ mod tests {
                 errors[0],
                 CompilerError::UnexpectedEndOfFile { at: _, advice: _ }
             ));
-            // Fatal error end the parser early
+            // Fatal errors end the parser early
             assert_eq!(file.imports.len(), 0);
         }
 
@@ -715,7 +731,7 @@ mod tests {
             assert_eq!(errors.len(), 1);
             assert!(matches!(
                 errors[0],
-                CompilerError::UnexpectedPubModifier { at: _ }
+                CompilerError::UnexpectedModifier { at: _ }
             ));
             assert_eq!(file.imports.len(), 1);
             assert_eq!(file.imports[0].module, "foo");

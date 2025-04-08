@@ -1,10 +1,7 @@
-use std::any::{Any, TypeId};
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
-use syn::spanned::Spanned;
-use syn::{ItemStruct, Type, TypePath, TypeTuple};
+use syn::ItemStruct;
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,

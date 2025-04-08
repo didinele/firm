@@ -49,8 +49,8 @@ pub enum CompilerError {
         #[help]
         advice: Option<String>,
     },
-    #[error("Unexpected pub modifier")]
-    UnexpectedPubModifier {
+    #[error("Unexpected modifier")]
+    UnexpectedModifier {
         #[label("here")]
         at: SourceSpan,
     },

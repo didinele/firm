@@ -121,14 +121,14 @@ fn main() -> miette::Result<()> {
                     }
 
                     let parser = parser::Parser::new(src, lexed);
-                    let file = parser.parse();
+                    let parsed: ParserResult = parser.parse();
 
                     // At this point, let's strip the start of the path (i.e. <root>/src/)
                     let path = path
                         .strip_prefix(&format!("{}/src/", root))
                         .unwrap_or(&path)
                         .to_string();
-                    tx.send((path, (Some(src), file))).expect(THREAD_BUG_MSG);
+                    tx.send((path, (Some(src), parsed))).expect(THREAD_BUG_MSG);
                 });
             }
 
