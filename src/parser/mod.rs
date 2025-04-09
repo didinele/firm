@@ -107,13 +107,7 @@ impl Parser {
             src,
             tokens: lexed.tokens.into_iter().peekable(),
             errors: lexed.errors,
-            file: ApplicationFile {
-                imports: vec![],
-                enums: vec![],
-                types: vec![],
-                structs: vec![],
-                associated: vec![],
-            },
+            file: ApplicationFile::default(),
             modifier_tokens: HashMap::new(),
         }
     }
@@ -207,6 +201,49 @@ impl Parser {
             span: spans::from_range(&identifier.span(), &final_span),
             generic_args: (first_arg_index, arg_count),
         })
+    }
+
+    fn parse_block(&mut self, fallback_span: SourceSpan) -> Result<lang::BlockExpr, ()> {
+        let left_curly = next_of_type!(
+            self.tokens.next().expect(BAD_NEXT_MSG),
+            self.errors,
+            TokenKind::LeftCurly,
+            fallback_span
+        )?;
+
+        let end_span;
+        let expr_start = self.file.associated.len();
+        let mut expr_count = 0;
+
+        loop {
+            let peeked = self.tokens.peek().expect(BAD_NEXT_MSG);
+            if peeked.kind() == TokenKind::RightCurly {
+                end_span = self.tokens.next().expect(BAD_NEXT_MSG).span();
+                break;
+            }
+
+            if peeked.kind() == TokenKind::EOF {
+                self.errors.push(CompilerError::UnexpectedEndOfFile {
+                    at: left_curly.span(),
+                    advice: Some("Expected a `}` token to end the block".to_string()),
+                });
+
+                return Err(());
+            }
+
+            let expr = self.parse_expr(fallback_span)?;
+            self.file.associated.push(lang::Stmt::Expr(expr));
+            expr_count += 1;
+        }
+
+        Ok(lang::BlockExpr {
+            span: spans::from_range(&left_curly.span(), &end_span),
+            exprs: (expr_start, expr_count),
+        })
+    }
+
+    fn parse_expr(&mut self, fallback_span: SourceSpan) -> Result<lang::Expr, ()> {
+        todo!()
     }
 
     pub fn parse(mut self) -> ParserResult {
@@ -550,6 +587,87 @@ impl Parser {
                         spans::placeholder_from(&token.span())
                     ));
 
+                    let left_paren = parser_unwrap!(next_of_type!(
+                        self.tokens.next().expect(BAD_NEXT_MSG),
+                        self.errors,
+                        TokenKind::LeftParen,
+                        spans::placeholder_from(&name.span())
+                    ));
+
+                    let mut arg_names = vec![];
+                    let arg_type_start = self.file.associated.len();
+                    let mut arg_type_count = 0;
+
+                    let mut latest_span = left_paren.span();
+
+                    loop {
+                        let func_tok = self.tokens.next().expect(BAD_NEXT_MSG);
+                        match func_tok.kind() {
+                            TokenKind::RightParen => break,
+                            TokenKind::Identifier => {
+                                arg_names.push(func_tok.src(self.src));
+                                let colon = parser_unwrap!(next_of_type!(
+                                    self.tokens.next().expect(BAD_NEXT_MSG),
+                                    self.errors,
+                                    TokenKind::Colon,
+                                    spans::placeholder_from(&func_tok.span())
+                                ));
+
+                                let typeref = parser_unwrap!(self.parse_type_ref(colon.span()));
+                                self.file
+                                    .associated
+                                    .push(lang::Stmt::Expr(lang::Expr::TypeRef(typeref)));
+                                arg_type_count += 1;
+
+                                let tok = parser_unwrap!(next_of_type!(
+                                    self.tokens.next().expect(BAD_NEXT_MSG),
+                                    self.errors,
+                                    TokenKind::Colon | TokenKind::RightParen,
+                                    spans::placeholder_from(&func_tok.span())
+                                ));
+
+                                if tok.kind() == TokenKind::RightParen {
+                                    latest_span = tok.span();
+                                    break;
+                                }
+                            }
+                            TokenKind::EOF => {
+                                self.errors.push(CompilerError::UnexpectedEndOfFile {
+                                    at: func_tok.span(),
+                                    advice: Some("Expected an identifier or `)`".to_string()),
+                                });
+                                break 'main;
+                            }
+                            _ => {
+                                self.errors.push(CompilerError::UnexpectedToken {
+                                    at: func_tok.span(),
+                                    advice: Some("Expected an identifier or `)`".to_string()),
+                                });
+                                break;
+                            }
+                        }
+                    }
+
+                    let mut return_type = None;
+
+                    if self.tokens.peek().unwrap().kind() == TokenKind::Arrow {
+                        self.tokens.next().expect(BAD_NEXT_MSG);
+                        let typeref = parser_unwrap!(self.parse_type_ref(name.span()));
+                        return_type = Some(self.file.associated.len());
+                        latest_span = typeref.span;
+                        self.file
+                            .associated
+                            .push(lang::Stmt::Expr(lang::Expr::TypeRef(typeref)));
+                    }
+
+                    let body_block = parser_unwrap!(self.parse_block(latest_span));
+                    let body = self.file.associated.len();
+                    let body_span = body_block.span;
+
+                    self.file
+                        .associated
+                        .push(lang::Stmt::Expr(lang::Expr::Block(body_block)));
+
                     let pub_token = self.modifier_tokens.get(&TokenKind::Pub);
                     let pure_token = self.modifier_tokens.get(&TokenKind::Pure);
                     let const_token = self.modifier_tokens.get(&TokenKind::Const);
@@ -559,17 +677,22 @@ impl Parser {
                         .filter_map(|token| token.map(|token| token.span()))
                         .min_by_key(|token| token.offset());
 
-                    let mut function_stmt = lang::FunctionStmt {
+                    let span = spans::from_range(&earliest.unwrap_or(token.span()), &body_span);
+
+                    let function_stmt = lang::FunctionStmt {
                         name: name.src(self.src),
                         is_pub: pub_token.is_some(),
                         is_const: const_token.is_some(),
                         is_pure: pure_token.is_some(),
-                        arg_names: vec![],
-                        arg_types: (self.file.associated.len(), 0),
-                        span: earliest.unwrap_or(token.span()),
-                        body: 0,
-                        return_type: Some(0),
+                        arg_names,
+                        arg_types: (arg_type_start, arg_type_count),
+                        span,
+                        body,
+                        return_type,
                     };
+
+                    self.modifier_tokens.clear();
+                    self.file.functions.push(function_stmt);
                 }
                 // We are done parsing
                 TokenKind::EOF => break 'main,

@@ -12,7 +12,6 @@ use miette::SourceSpan;
 /// Denoted by `{ ... }`.
 #[derive(Debug, Clone, PartialEq, Eq, AstNode)]
 pub struct BlockExpr {
-    pub statement_count: usize,
     pub span: SourceSpan,
     #[related_many]
     pub exprs: (usize, usize),
@@ -76,6 +75,19 @@ pub enum Expr {
     NumberLiteral(NumberLiteralExpr),
     BoolLiteral(BoolLiteralExpr),
     TypeRef(TypeRefExpr),
+}
+impl Expr {
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            Expr::Block(expr) => expr.span,
+            Expr::If(expr) => expr.span,
+            Expr::Identifier(expr) => expr.span,
+            Expr::StringLiteral(expr) => expr.span,
+            Expr::NumberLiteral(expr) => expr.span,
+            Expr::BoolLiteral(expr) => expr.span,
+            Expr::TypeRef(expr) => expr.span,
+        }
+    }
 }
 
 /// Denoted by the `import mod as alias` syntax.
@@ -151,6 +163,18 @@ pub enum Stmt {
 
     Expr(Expr),
 }
+impl Stmt {
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            Stmt::Import(stmt) => stmt.span,
+            Stmt::Function(stmt) => stmt.span,
+            Stmt::Enum(stmt) => stmt.span,
+            Stmt::Type(stmt) => stmt.span,
+            Stmt::Struct(stmt) => stmt.span,
+            Stmt::Expr(expr) => expr.span(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct ApplicationFile {
@@ -158,5 +182,6 @@ pub struct ApplicationFile {
     pub enums: Vec<EnumStmt>,
     pub types: Vec<TypeStmt>,
     pub structs: Vec<StructStmt>,
+    pub functions: Vec<FunctionStmt>,
     pub associated: Vec<Stmt>,
 }
